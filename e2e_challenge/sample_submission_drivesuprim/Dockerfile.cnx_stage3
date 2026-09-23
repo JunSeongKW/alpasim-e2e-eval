@@ -1,0 +1,168 @@
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python-is-python3 \
+        git \
+        libglib2.0-0 \
+        libgl1 \
+    && python -m pip install --upgrade pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Official PyTorch 2.0.1 CUDA 11.8 wheels.
+RUN python -m pip install \
+    torch==2.0.1 \
+    torchvision==0.15.2 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
+ENV XDG_CACHE_HOME=/tmp/.cache
+ENV TORCH_HOME=/tmp/torch
+ENV MPLCONFIGDIR=/tmp/matplotlib
+ENV CUDA_CACHE_PATH=/tmp/nv
+ENV NUMBA_CACHE_DIR=/tmp/numba
+
+ENV ALPASIM_DRIVER_LOG_DIR=/run/alpasim-driver
+
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
+ENV TORCH_NUM_THREADS=1
+ENV TORCH_NUM_INTEROP_THREADS=1
+
+WORKDIR /app
+
+# ------------------------------------------------------------
+# AlpaSim gRPC package
+# ------------------------------------------------------------
+
+COPY src/grpc /tmp/alpasim_grpc
+
+COPY \
+    e2e_challenge/sample_submission_drivesuprim/scripts/patch_grpc_py310.py \
+    /tmp/patch_grpc_py310.py
+
+RUN python /tmp/patch_grpc_py310.py \
+    && pip install /tmp/alpasim_grpc \
+    && rm -rf \
+        /tmp/alpasim_grpc \
+        /tmp/patch_grpc_py310.py
+
+# ------------------------------------------------------------
+# DriveSuprim dependencies
+# ------------------------------------------------------------
+
+COPY \
+    e2e_challenge/sample_submission_drivesuprim/requirements.txt \
+    /tmp/requirements.txt
+
+RUN pip install -r /tmp/requirements.txt \
+    && pip install "mmcv-full==1.7.2" \
+         -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html \
+         --only-binary mmcv-full \
+    && pip install "mmdet==2.28.2" mmengine \
+    && pip uninstall -y opencv-python opencv-python-headless \
+    && pip install --force-reinstall \
+         "numpy==1.23.4" \
+         "opencv-python-headless==4.9.0.80" \
+    && rm -f /tmp/requirements.txt
+
+# ------------------------------------------------------------
+# ConvNeXt V2 + BEVFormer stage3 source
+#
+# Copy the exact navsim source that accompanied the stage3
+# checkpoint package.
+# ------------------------------------------------------------
+
+COPY \
+    e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/source_cnx_stage3/navsim \
+    /app/navsim
+
+# ------------------------------------------------------------
+# Stage3 model assets
+# ------------------------------------------------------------
+
+COPY \
+    e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/drivesuprim_v2_convnextv2_stage3_epoch04.ckpt \
+    /app/assets/drivesuprim/drivesuprim_v2_convnextv2_stage3_epoch04.ckpt
+
+COPY \
+    e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/test_4096_kmeans.npy \
+    /app/assets/drivesuprim/test_4096_kmeans.npy
+
+COPY \
+    e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/cnx_stage3_config.json \
+    /app/assets/drivesuprim/cnx_stage3_config.json
+
+# ------------------------------------------------------------
+# AlpaSim driver plumbing
+# ------------------------------------------------------------
+
+COPY \
+    e2e_challenge/sample_submission_vavam/vavam_challenge \
+    /app/vavam_challenge
+
+COPY \
+    e2e_challenge/sample_submission_drivesuprim/drivesuprim_challenge \
+    /app/drivesuprim_challenge
+
+# ------------------------------------------------------------
+# Runtime
+# ------------------------------------------------------------
+
+ENV ALPASIM_DRIVER_HOST=0.0.0.0
+ENV ALPASIM_DRIVER_PORT=6789
+
+ENV DRIVESUPRIM_REQUIRE_POLICY_FOR_VERSION=0
+ENV DRIVESUPRIM_SESSION_STARTUP_TIMEOUT_S=600
+
+ENV DRIVESUPRIM_MAX_BATCH_SIZE=1
+ENV DRIVESUPRIM_BATCH_WAIT_MS=5
+ENV DRIVESUPRIM_INFERENCE_INTERVAL_US=100000
+
+ENV ALPASIM_DRIVER_GRPC_WORKERS=8
+
+ENV DRIVESUPRIM_ASSET_DIR=/app/assets/drivesuprim
+ENV DRIVESUPRIM_PINHOLE_PROFILE=NAVSIM_512X256
+ENV DRIVESUPRIM_NAVSIM_2HZ_HISTORY=1
+ENV DRIVESUPRIM_REQUIRE_EXACT_CHECKPOINT=1
+ENV DRIVESUPRIM_FORCE_PYTORCH_MSDA=1
+
+# ------------------------------------------------------------
+# ConvNeXt V2 / BEVFormer stage3
+# ------------------------------------------------------------
+
+ENV DRIVESUPRIM_BACKBONE_TYPE=bevformer_m
+
+ENV DRIVESUPRIM_CONFIG_PATH=/app/assets/drivesuprim/cnx_stage3_config.json
+
+ENV DRIVESUPRIM_CHECKPOINT_PATH=/app/assets/drivesuprim/drivesuprim_v2_convnextv2_stage3_epoch04.ckpt
+
+ENV DRIVESUPRIM_VOCAB_PATH=/app/assets/drivesuprim/test_4096_kmeans.npy
+
+# No separate backbone .pth is required.
+ENV DRIVESUPRIM_BACKBONE_PATH=
+
+# First smoke/probe is FP32.
+ENV DRIVESUPRIM_USE_FP16=0
+ENV DRIVESUPRIM_NATIVE_FP16=0
+ENV DRIVESUPRIM_CHANNELS_LAST=0
+
+# BEV input bridge is enabled; run ConvNeXtV2 stage3 inference by default.
+ENV DRIVESUPRIM_DISABLE_INFERENCE=0
+
+LABEL org.alpasim.model="drivesuprim-convnextv2-stage3-epoch04"
+LABEL org.alpasim.checkpoint.sha256="9a8250144083af1b37e906a25584288f78bc14b43a2e5fb5ffd4fd03457ce662"
+LABEL org.alpasim.vocab.sha256="6f52b5fac9ff5debe5bae9dc82c3298b09ad0530aca63ba4285f7092301395cf"
+
+EXPOSE 6789
+
+CMD ["python", "-m", "drivesuprim_challenge.driver"]

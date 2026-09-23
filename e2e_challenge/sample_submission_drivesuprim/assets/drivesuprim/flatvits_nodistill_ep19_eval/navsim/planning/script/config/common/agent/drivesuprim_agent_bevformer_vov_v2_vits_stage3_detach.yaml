@@ -1,0 +1,19 @@
+# Stage 3 with the perception losses cut off from the shared trunk, for the
+# v2_vits architecture. Mirrors drivesuprim_agent_bevformer_vov_v2_cnx_stage3_detach.
+#
+# aux_detach_bev detaches patch_token before the detection and segmentation
+# heads read it, so those losses train the HEADS ONLY. The BEV encoder and image
+# backbone are then shaped by the planning objective alone, while the perception
+# heads re-fit whatever trunk the planner produces.
+#
+# Pairs with drivesuprim_agent_bevformer_vov_v2_vits_stage3, which is the SAME
+# recipe with the gradients left connected. The two differ in exactly one
+# resolved key, so running both from the same stage-2 checkpoint isolates it.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits_stage3
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_stage3_detach_ckpt
+
+  aux_detach_bev: true

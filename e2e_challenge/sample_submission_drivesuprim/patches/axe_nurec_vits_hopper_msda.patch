@@ -1,0 +1,27 @@
+--- a/agents/backbones/bevformer/spatial_cross_attention.py
++++ b/agents/backbones/bevformer/spatial_cross_attention.py
+@@ -16,6 +16,7 @@ numerical result is equivalent because invisible queries are masked out before
+ averaging.
+ """
+ import math
++import os
+ import warnings
+ 
+ import torch
+@@ -31,11 +32,15 @@ try:
+ except Exception:  # pragma: no cover
+     _HAS_CUDA_MSDA = False
+ 
++_FORCE_PYTORCH_MSDA = os.getenv(
++    "DRIVESUPRIM_FORCE_PYTORCH_MSDA", "0"
++).strip().lower() in {"1", "true", "yes", "on"}
++
+ 
+ def _deform_attn(value, spatial_shapes, level_start_index, sampling_locations,
+                  attention_weights, im2col_step=64):
+     """Dispatch to the CUDA deformable-attention kernel on GPU, else PyTorch."""
+-    if _HAS_CUDA_MSDA and value.is_cuda:
++    if _HAS_CUDA_MSDA and value.is_cuda and not _FORCE_PYTORCH_MSDA:
+         # mmcv's CUDA kernel (ms_deform_attn_cuda.cu) does
+         #   im2col_step_ = min(batch, im2col_step)
+         #   assert batch % im2col_step_ == 0

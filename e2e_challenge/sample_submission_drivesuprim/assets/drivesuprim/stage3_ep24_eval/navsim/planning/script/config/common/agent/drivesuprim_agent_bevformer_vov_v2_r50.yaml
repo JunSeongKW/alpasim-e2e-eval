@@ -1,0 +1,49 @@
+# v2 architecture with EAD's image backbone: ResNet-50, nuImages-pretrained.
+#
+# Only the IMAGE BACKBONE changes. The BEV encoder, its FPN, the grid, the
+# planner, the vocabulary and every loss weight stay exactly as v2_cnx has them,
+# so a run of this against v2_cnx isolates the backbone.
+#
+# WHAT "SAME AS EAD" MEANS HERE. EAD's phase yaml names only
+# image_architecture: "resnet50" (ead_bev_C_phase1.yaml:41), which is easy to
+# read as plain ImageNet. It is not: ead_config.py:106 sets
+# use_nuimg_pretrained=True by DEFAULT, and ead_backbone.py:34-39 then overwrites
+# the timm ImageNet weights with a nuImages DETECTION checkpoint --
+# mmdetection3d's cascade_mask_rcnn_r50_fpn_coco-20e_20e_nuim. Only its
+# `backbone.*` keys are taken, prefix stripped, `fc.*` dropped, strict=False;
+# that is StreamPETR's recipe and EAD copies it. Reproduced verbatim in
+# BEVFormerM._load_nuimg_backbone_weights.
+#
+# So the order is: timm ImageNet load, then nuImages replaces it. Both flags are
+# set below because the timm load also fixes the architecture's own defaults.
+#
+# WHAT IS DELIBERATELY NOT COPIED. EAD feeds four backbone stages (strides
+# 4/8/16/32, neck_in_channels [256,512,1024,2048]) into a BiFPN, then a
+# GeometryKernel encoder. We keep our three stages (8/16/32) into SimpleFPN and
+# the BEVFormer deformable encoder -- this file is a backbone swap, not an
+# EAD port.
+#
+# SPEED, measured 11 rounds interleaved against v2_cnx (contended, so read the
+# ratio not the ms): ResNet-50 1.15x, ResNet-34 1.21x. ResNet-50 has FEWER
+# backbone parameters than ConvNeXt V2-T (23.5M vs 27.9M) yet gains less than
+# ResNet-34, because its bottleneck stages are 4x wider -- FPN in_chs
+# [512,1024,2048] vs [128,256,512] -- and the 1x1 projections eat the saving.
+#
+# RETRAINING: from stage 1. Changing the backbone changes its parameters, so no
+# existing checkpoint loads.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_r50_ckpt
+
+  bevformer_img_backbone: resnet50
+  bevformer_cnn_pretrained: true
+  bevformer_cnn_nuimg_ckpt: ${oc.env:NAVSIM_EXP_ROOT}/models/nuim_cascade_r50.pth
+
+  # bevformer_img_norm is left at whatever v2_cnx sets ('imagenet'), NOT at EAD's
+  # value. EAD applies no normalisation at all, but copying that here would change
+  # two things at once and stop this being a backbone swap. ImageNet statistics
+  # are also the right convention for these weights: the timm ResNet-50 and the
+  # nuImages detector on top of it were both trained under them.

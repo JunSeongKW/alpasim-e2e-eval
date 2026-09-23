@@ -1,0 +1,132 @@
+_target_: navsim.agents.drivesuprim.drivesuprim_agent.DriveSuprimAgent
+_convert_: 'all'
+pdm_split: navtrain
+metrics:
+  - no_at_fault_collisions
+  - drivable_area_compliance
+  - time_to_collision_within_bound
+  - ego_progress
+  - driving_direction_compliance
+  - lane_keeping
+  - traffic_light_compliance
+  - history_comfort
+
+config:
+  _target_: navsim.agents.drivesuprim.drivesuprim_config.DriveSuprimConfig
+  _convert_: 'all'
+  ckpt_path: drivesuprim_bevformer_vitl_ckpt
+
+  trajectory_imi_weight: 1.0
+
+  vocab_size: 8192
+  vocab_path: ${oc.env:NAVSIM_DEVKIT_ROOT}/traj_final/test_8192_kmeans.npy
+  normalize_vocab_pos: True
+
+  sigma: 0.5
+  vadv2_head_nlayers: 3
+
+  trajectory_sampling:
+    _target_: nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling
+    _convert_: 'all'
+    time_horizon: 4
+    interval_length: 0.1
+
+  # ===== Original-size BEVFormer + DINOv2 ViT-L front-end (A100/H100) =====
+  backbone_type: 'bevformer_m'
+  # --- per-view image backbone: DINOv2 ViT-L (patch14) via ViTDet pyramid ---
+  bevformer_img_backbone_type: 'vit'
+  bevformer_vit_name: 'vit_large_patch14_reg4_dinov2'  # DINOv2 ViT-L + registers (strong dense features)
+  bevformer_vit_pretrained: true      # pull DINOv2 weights (needs network once; else set bevformer_vit_ckpt)
+  bevformer_vit_ckpt: ''              # OR a local DINOv2 ViT-L checkpoint (offline nodes)
+  # DEFAULT: FREEZE DINOv2 ViT-L. Its features are already strong for dense
+  # detection/seg, freezing halves memory + avoids destabilizing pretrained
+  # weights, AND lets the from-scratch BEV encoder/pyramid/heads train at FULL
+  # LR (lr_mult_backbone=1.0) without the ViT dragging them down. To fine-tune
+  # the ViT instead, set freeze=false — but then the current optimizer puts the
+  # whole front-end in one LR bucket, so you'd want a split LR (ask to add it).
+  bevformer_vit_freeze: true
+  lr_mult_backbone: 1.0
+
+  # --- ORIGINAL BEVFormer grid size (200x200) ---
+  bev_h: 200
+  bev_w: 200
+  # Pool the first-stage trajectory keyval to 50x50 (2500 tokens) so the
+  # 8192-vocab cross-attention stays cheap; detection/seg/refinement keep the
+  # full 200x200 BEV map. Without this, 8192x40000 attention dominates memory.
+  bev_keyval_grid: 50
+  bev_embed_dims: 256           # must equal tf_d_model
+  bev_num_encoder_layers: 6     # BEVFormer/UniAD = 6
+  bev_num_feature_levels: 4     # ViTDet simple pyramid -> 4 levels
+  bev_num_points_in_pillar: 4
+  bev_num_cameras: 3            # cam_l0 / cam_f0 / cam_r0
+  # patch14 needs H,W divisible by 14: 252x504 (18x36 patches), ~= NAVSIM 256x512
+  bev_img_height: 252
+  bev_img_width: 504
+  bev_seq_len: 3               # current + 2 past frames
+  bev_use_temporal_align: True
+  # 200x200 grid + ViT-L: gradient checkpointing is REQUIRED to fit even 40-80GB.
+  bev_use_grad_checkpoint: True
+  point_cloud_range: [-32.0, -32.0, -3.0, 32.0, 32.0, 5.0]
+
+  # BEV token grid drives the trajectory-head positional embedding sizing.
+  n_camera: 3
+  camera_width: 2048
+  camera_height: 512
+  img_vert_anchors: 200    # = bev_h (BEV token grid for the trajectory head PE)
+  img_horz_anchors: 200    # = bev_w
+
+  training: True
+
+  # Augmentation: rotation ensemble off by default here (heavy w/ ViT-L @200x200);
+  # teacher/student self-distillation still runs via photometric augmentation.
+  only_ori_input: true
+  ego_perturb:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.EgoPerturbConfig
+    _convert_: 'all'
+    n_student_rotation_ensemble: 3
+    offline_aug_angle_boundary: 30.0
+    offline_aug_file: null
+
+  ori_vocab_pdm_score_full_path: "aaa.pkl"
+  ori_vocab_pdm_score_dir: ""
+  aug_vocab_pdm_score_dir: "ccc"
+
+  # ===== Auxiliary heads ON: detection + drivable-area BEV segmentation =====
+  # (motion prediction OFF by default -> current-frame detection; enable via
+  #  aux_predict_agents=true if you want the 4s forecasting head too)
+  use_aux_heads: true
+  aux_bev_drivable_only: true
+  aux_bev_seg_weight: 1.0
+  aux_agent_class_weight: 1.0
+  aux_agent_box_weight: 0.05
+  # "transfuser" = current lightweight aux detector.
+  # "bevformer" = BEVFormer-style full-BEV query decoder detector.
+  aux_agent_head_type: transfuser
+  aux_bevformer_det_layers: 6
+  aux_bevformer_det_with_box_refine: true
+  aux_predict_agents: false
+
+  # Self-distillation
+  soft_label_traj: 'first'
+  soft_label_imi_diff_thresh: 1.0
+  soft_label_score_diff_thresh: 0.15
+  update_buffer_in_ema: true
+
+  refinement:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.RefinementConfig
+    use_multi_stage: true
+    num_refinement_stage: 1
+    stage_layers: "3"
+    topks: "256"
+    use_mid_output: true
+    use_separate_stage_heads: true
+    use_imi_learning_in_refinement: true
+
+  inference:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.InferConfig
+    model: teacher
+    use_first_stage_traj_in_infer: false
+    save_pickle: false
+
+checkpoint_path: null
+lr: 1e-4

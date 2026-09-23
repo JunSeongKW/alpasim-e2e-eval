@@ -1,0 +1,191 @@
+[2026-09-13 19:52:21] === 016-screen-lon2 ===
+[2026-09-13 19:52:21]     OFAT: long_position_weight 0.5 -> 2
+[2026-09-13 19:52:21]     gains: {"long_position_weight":2.0,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-13 19:52:21]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 19:52:21]     removing stale run dir
+[2026-09-13 20:24:21]     wizard exit=0
+[2026-09-13 20:24:54]     score=0.65179 se=0.02508 clips=117 zero=0.3761
+[2026-09-13 20:24:55] === 017-screen-idx10 ===
+[2026-09-13 20:24:55]     OFAT: idx_start_penalty 3 -> 10
+[2026-09-13 20:24:55]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":10}
+[2026-09-13 20:24:55]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 20:24:55]     removing stale run dir
+[2026-09-13 20:57:00]     wizard exit=0
+[2026-09-13 20:57:32]     score=0.58234 se=0.04149 clips=117 zero=0.4274
+[2026-09-13 20:57:33] === 018-screen-hdg6 ===
+[2026-09-13 20:57:33]     OFAT: heading_weight 1 -> 6
+[2026-09-13 20:57:33]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":6.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-13 20:57:33]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 20:57:33]     removing stale run dir
+[2026-09-13 21:29:50]     wizard exit=0
+[2026-09-13 21:30:24]     score=0.68209 se=0.02659 clips=117 zero=0.3504
+[2026-09-13 21:30:25] === 019-screen-rst1 ===
+[2026-09-13 21:30:25]     OFAT: rel_front_steering_angle_weight 5 -> 1
+[2026-09-13 21:30:25]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":1.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-13 21:30:25]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 21:30:25]     removing stale run dir
+[2026-09-13 22:02:53]     wizard exit=0
+[2026-09-13 22:03:25]     score=0.66121 se=0.02528 clips=117 zero=0.3846
+[2026-09-13 22:03:26] === 020-screen-rac8 ===
+[2026-09-13 22:03:26]     OFAT: rel_acceleration_weight 1 -> 8
+[2026-09-13 22:03:26]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":8.0,"idx_start_penalty":3}
+[2026-09-13 22:03:26]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 22:03:26]     removing stale run dir
+[2026-09-13 22:34:06]     wizard exit=0
+[2026-09-13 22:34:38]     score=0.6162 se=0.03443 clips=117 zero=0.4615
+[2026-09-13 22:34:39] === 021-screen-acc2 ===
+[2026-09-13 22:34:39]     OFAT: acceleration_weight 0.1 -> 2
+[2026-09-13 22:34:39]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":2.0,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-13 22:34:39]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 22:34:39]     removing stale run dir
+[2026-09-13 23:05:22]     wizard exit=0
+[2026-09-13 23:05:56]     score=0.6706 se=0.01992 clips=117 zero=0.3932
+[2026-09-13 23:05:56] === 022-screen-lat1 ===
+[2026-09-13 23:05:56]     OFAT: lat_position_weight 6 -> 1
+[2026-09-13 23:05:56]     gains: {"long_position_weight":0.5,"lat_position_weight":1.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-13 23:05:56]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 23:05:56]     removing stale run dir
+[2026-09-13 23:38:10]     wizard exit=0
+[2026-09-13 23:38:44]     score=0.64594 se=0.02977 clips=117 zero=0.3932
+[2026-09-13 23:38:45] === 023-screen-lon4 ===
+[2026-09-13 23:38:45]     OFAT: long_position_weight 0.5 -> 4
+[2026-09-13 23:38:45]     gains: {"long_position_weight":4.0,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-13 23:38:45]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-13 23:38:45]     removing stale run dir
+[2026-09-14 00:11:33]     wizard exit=0
+[2026-09-14 00:12:07]     score=0.62701 se=0.02798 clips=117 zero=0.359
+[2026-09-14 00:12:08] === 024-screen-idx15 ===
+[2026-09-14 00:12:08]     OFAT: idx_start_penalty 3 -> 15
+[2026-09-14 00:12:08]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":15}
+[2026-09-14 00:12:08]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 00:12:08]     removing stale run dir
+[2026-09-14 00:43:30]     wizard exit=0
+[2026-09-14 00:44:03]     score=0.53498 se=0.04253 clips=117 zero=0.5128
+[2026-09-14 00:44:04] === 025-screen-hdg10 ===
+[2026-09-14 00:44:04]     OFAT: heading_weight 1 -> 10
+[2026-09-14 00:44:04]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":10.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 00:44:04]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 00:44:04]     removing stale run dir
+[2026-09-14 01:16:11]     wizard exit=0
+[2026-09-14 01:16:43]     score=0.66253 se=0.02492 clips=117 zero=0.3761
+[2026-09-14 01:16:44] === 026-screen-lon0 ===
+[2026-09-14 01:16:44]     OFAT: long_position_weight 0.5 -> 0
+[2026-09-14 01:16:44]     gains: {"long_position_weight":0.0,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 01:16:44]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 01:16:44]     removing stale run dir
+[2026-09-14 01:49:12]     wizard exit=0
+[2026-09-14 01:49:46]     score=0.4394 se=0.04957 clips=117 zero=0.5043
+[2026-09-14 01:49:47] === 027-screen-idx0 ===
+[2026-09-14 01:49:47]     OFAT: idx_start_penalty 3 -> 0
+[2026-09-14 01:49:47]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":0}
+[2026-09-14 01:49:47]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 01:49:47]     removing stale run dir
+[2026-09-14 02:20:14]     wizard exit=0
+[2026-09-14 02:20:45]     score=0.67291 se=0.02519 clips=117 zero=0.359
+[2026-09-14 02:20:46] === 028-screen-hdg0 ===
+[2026-09-14 02:20:46]     OFAT: heading_weight 1 -> 0
+[2026-09-14 02:20:46]     gains: {"long_position_weight":0.5,"lat_position_weight":6.0,"heading_weight":0.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 02:20:46]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 02:20:46]     removing stale run dir
+[2026-09-14 02:53:01]     wizard exit=0
+[2026-09-14 02:53:33]     score=0.69196 se=0.02639 clips=117 zero=0.3248
+[2026-09-14 02:53:34] === 029-confirm-screen-lat3 ===
+[2026-09-14 02:53:34]     repeat 015-screen-lat3 to average out noise (measurement 2 of 3, mean so far 0.7042)
+[2026-09-14 02:53:34]     gains: {"long_position_weight":0.5,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 02:53:34]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 03:24:40]     wizard exit=0
+[2026-09-14 03:25:12]     score=0.69745 se=0.01929 clips=117 zero=0.3162
+[2026-09-14 03:25:13] === 030-confirm-screen-lat3 ===
+[2026-09-14 03:25:13]     repeat 015-screen-lat3 to average out noise (measurement 3 of 3, mean so far 0.7008)
+[2026-09-14 03:25:13]     gains: {"long_position_weight":0.5,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 03:25:13]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 03:56:29]     wizard exit=0
+[2026-09-14 03:57:01]     score=0.6825 se=0.01966 clips=117 zero=0.3419
+[2026-09-14 03:57:01] === 031-refine-lon0.25 ===
+[2026-09-14 03:57:01]     coordinate descent from 015-screen-lat3 (0.6947): long_position_weight 0.5 -> 0.25
+[2026-09-14 03:57:01]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 03:57:01]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 04:27:36]     wizard exit=0
+[2026-09-14 04:28:09]     score=0.712 se=0.01955 clips=117 zero=0.3162
+[2026-09-14 04:28:10] === 032-confirm-refine-lon0.25 ===
+[2026-09-14 04:28:10]     repeat 031-refine-lon0.25 to average out noise (measurement 2 of 3, mean so far 0.7120)
+[2026-09-14 04:28:10]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 04:28:10]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 04:58:57]     wizard exit=0
+[2026-09-14 04:59:34]     score=0.70744 se=0.01859 clips=117 zero=0.3162
+[2026-09-14 04:59:34] === 033-confirm-refine-lon0.25 ===
+[2026-09-14 04:59:34]     repeat 031-refine-lon0.25 to average out noise (measurement 3 of 3, mean so far 0.7097)
+[2026-09-14 04:59:34]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 04:59:34]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 05:30:33]     wizard exit=0
+[2026-09-14 05:31:02]     score=0.7048 se=0.01958 clips=117 zero=0.3248
+[2026-09-14 05:31:03] === 034-refine-lat1 ===
+[2026-09-14 05:31:03]     coordinate descent from 031-refine-lon0.25 (0.7081): lat_position_weight 3 -> 1
+[2026-09-14 05:31:03]     gains: {"long_position_weight":0.25,"lat_position_weight":1.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 05:31:03]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 06:02:24]     wizard exit=0
+[2026-09-14 06:02:58]     score=0.68621 se=0.02761 clips=117 zero=0.3504
+[2026-09-14 06:02:59] === 035-refine-lat8 ===
+[2026-09-14 06:02:59]     coordinate descent from 031-refine-lon0.25 (0.7081): lat_position_weight 3 -> 8
+[2026-09-14 06:02:59]     gains: {"long_position_weight":0.25,"lat_position_weight":8.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 06:02:59]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 06:33:52]     wizard exit=0
+[2026-09-14 06:34:22]     score=0.67029 se=0.02552 clips=117 zero=0.359
+[2026-09-14 06:34:23] === 036-refine-lat10 ===
+[2026-09-14 06:34:23]     coordinate descent from 031-refine-lon0.25 (0.7081): lat_position_weight 3 -> 10
+[2026-09-14 06:34:23]     gains: {"long_position_weight":0.25,"lat_position_weight":10.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 06:34:23]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 07:05:26]     wizard exit=0
+[2026-09-14 07:05:57]     score=0.67395 se=0.02449 clips=117 zero=0.359
+[2026-09-14 07:05:58] === 037-refine-lon0 ===
+[2026-09-14 07:05:58]     coordinate descent from 031-refine-lon0.25 (0.7081): long_position_weight 0.25 -> 0
+[2026-09-14 07:05:58]     gains: {"long_position_weight":0.0,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 07:05:58]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 07:36:28]     wizard exit=0
+[2026-09-14 07:37:01]     score=0.42445 se=0.0492 clips=117 zero=0.5299
+[2026-09-14 07:37:01] === 038-refine-lon1 ===
+[2026-09-14 07:37:01]     coordinate descent from 031-refine-lon0.25 (0.7081): long_position_weight 0.25 -> 1
+[2026-09-14 07:37:01]     gains: {"long_position_weight":1.0,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 07:37:01]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 08:08:01]     wizard exit=0
+[2026-09-14 08:08:35]     score=0.6601 se=0.0267 clips=117 zero=0.3675
+[2026-09-14 08:08:35] === 039-refine-lon2 ===
+[2026-09-14 08:08:35]     coordinate descent from 031-refine-lon0.25 (0.7081): long_position_weight 0.25 -> 2
+[2026-09-14 08:08:35]     gains: {"long_position_weight":2.0,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 08:08:35]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 08:39:11]     wizard exit=0
+[2026-09-14 08:39:45]     score=0.63171 se=0.02489 clips=117 zero=0.3932
+[2026-09-14 08:39:46] === 040-refine-lon4 ===
+[2026-09-14 08:39:46]     coordinate descent from 031-refine-lon0.25 (0.7081): long_position_weight 0.25 -> 4
+[2026-09-14 08:39:46]     gains: {"long_position_weight":4.0,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":3}
+[2026-09-14 08:39:46]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 09:10:43]     wizard exit=0
+[2026-09-14 09:11:19]     score=0.54936 se=0.04263 clips=117 zero=0.3761
+[2026-09-14 09:11:20] === 041-refine-idx6 ===
+[2026-09-14 09:11:20]     coordinate descent from 031-refine-lon0.25 (0.7081): idx_start_penalty 3 -> 6
+[2026-09-14 09:11:20]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":6}
+[2026-09-14 09:11:20]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 09:43:39]     wizard exit=0
+[2026-09-14 09:44:12]     score=0.69283 se=0.0274 clips=117 zero=0.3419
+[2026-09-14 09:44:13] === 042-refine-idx1 ===
+[2026-09-14 09:44:13]     coordinate descent from 031-refine-lon0.25 (0.7081): idx_start_penalty 3 -> 1
+[2026-09-14 09:44:13]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":1}
+[2026-09-14 09:44:13]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 10:15:00]     wizard exit=0
+[2026-09-14 10:15:34]     score=0.65418 se=0.03116 clips=117 zero=0.4103
+[2026-09-14 10:15:35] === 043-refine-idx10 ===
+[2026-09-14 10:15:35]     coordinate descent from 031-refine-lon0.25 (0.7081): idx_start_penalty 3 -> 10
+[2026-09-14 10:15:35]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":10}
+[2026-09-14 10:15:35]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 10:47:39]     wizard exit=0
+[2026-09-14 10:48:09]     score=0.61409 se=0.03711 clips=117 zero=0.4188
+[2026-09-14 10:48:10] === 044-refine-idx0 ===
+[2026-09-14 10:48:10]     coordinate descent from 031-refine-lon0.25 (0.7081): idx_start_penalty 3 -> 0
+[2026-09-14 10:48:10]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":0}
+[2026-09-14 10:48:10]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search
+[2026-09-14 11:20:21]     wizard exit=0
+[2026-09-14 11:20:52]     score=0.63991 se=0.03201 clips=117 zero=0.4444
+[2026-09-14 11:20:52] === 045-refine-idx15 ===
+[2026-09-14 11:20:52]     coordinate descent from 031-refine-lon0.25 (0.7081): idx_start_penalty 3 -> 15
+[2026-09-14 11:20:52]     gains: {"long_position_weight":0.25,"lat_position_weight":3.0,"heading_weight":1.0,"acceleration_weight":0.1,"rel_front_steering_angle_weight":5.0,"rel_acceleration_weight":1.0,"idx_start_penalty":15}
+[2026-09-14 11:20:53]     preset=ec2 image=alpasim-e2e-drivesuprim-stage3:submit-v1 n_rollouts=1 subset=search

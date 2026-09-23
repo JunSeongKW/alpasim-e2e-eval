@@ -1,0 +1,38 @@
+# Stage 3 with the perception losses cut off from the shared trunk.
+#
+# aux_detach_bev detaches patch_token before the detection and segmentation
+# heads read it, so those losses train the HEADS ONLY. The BEV encoder and image
+# backbone are then shaped by the planning objective alone, while the perception
+# heads re-fit whatever trunk the planner produces.
+#
+# WHY. Unfreezing perception at stage 3 is a trade, measured on v1's own run:
+# the first stage-3 epoch drops mAP 0.4524 -> 0.4194 and seg IoU 0.8475 -> 0.8158
+# while every PDM sub-loss improves (DAC -20%, LK -14%, NC -7%). The planner
+# reshapes the shared BEV features for itself and the perception heads follow.
+#
+# That trade is worse for this architecture than for v1, because the feasibility
+# gate reads those heads: degrading detection degrades the gate, which feeds back
+# into candidate selection. Detaching separates the two -- the planner is free to
+# reshape the trunk, and perception quality stops being collateral damage.
+#
+# The alternative knob (lr_mult_img_backbone=0.5, SafeDrive's choice) damps BOTH
+# sides at once; this one separates them. Note lr_mult_backbone in this codebase
+# is the BEV encoder, not the image backbone -- the names do not line up.
+#
+# Pairs with drivesuprim_agent_bevformer_vov_v2_cnx_stage3, which is the SAME
+# recipe with the gradients left connected. The two differ in exactly one
+# resolved key, so running both from the same stage-2 checkpoint isolates it.
+#
+# Verified that the cut lands where intended: back-propagating ONLY the aux
+# losses, the gradient reaching the image backbone goes 36.27 -> 0.000000, the
+# BEV encoder 18.57 -> 0.000000 and temporal_fuse 5.32 -> 0.000000, while the
+# seg head (1.409) and detection head (147.9) are unchanged and the aux loss
+# value itself is identical. The losses still train, they just stop at the heads.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx_stage3
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_stage3_detach_ckpt
+
+  aux_detach_bev: true

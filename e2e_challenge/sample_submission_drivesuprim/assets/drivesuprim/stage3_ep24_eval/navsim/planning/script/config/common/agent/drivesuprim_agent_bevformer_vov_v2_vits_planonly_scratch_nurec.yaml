@@ -1,0 +1,191 @@
+# ViT-S planning-only, trained against the NuRec score.
+#
+# The label these targets come from is `NC x DAC x GT x EP` -- AlpaSim's scene
+# score, not NAVSIM's EPDMS. Five of the eight sub-scores the base agent
+# predicts are not in it, and on NuRec their exported values are held constants
+# rather than measurements:
+#
+#   lane_keeping                 fired on 27.1% of frames; the ClipGT lane
+#                                annotation sits about a metre off the driven
+#                                line, so it measured the map, not the driving
+#   driving_direction_compliance fired on 2.6%; it tests route membership, and
+#                                inspection found the human aligned to its lane
+#                                within 2.1 degrees on every frame it flagged
+#   history_comfort              8.0%; jerk and yaw-rate limits applied to an
+#                                MPC rollout, i.e. the controller's ripple
+#   traffic_light_compliance     constant 1.0 -- NuRec publishes no signal state
+#   time_to_collision_..._bound  0.5%, and two thirds of those frames were
+#                                already zeroed by collision.  AlpaSim has no
+#                                such term.
+#
+# Keeping heads on those is not neutral: a head trained to predict a constant
+# spends capacity and contributes a term to the ranking score that cannot
+# discriminate. They are dropped from `pdm_heads`, so the parameters do not
+# exist at all.
+#
+# `gt_compliance` replaces them. It is new -- a proposal that drifts 4 m off the
+# recorded run voids the scene in AlpaSim the way a collision does -- and it
+# multiplies, so it enters `pdm_score_log` beside NC and DAC.
+#
+# Ranking score becomes
+#     0.3 log softmax(imi) + 8.0 log s(NC) + 8.0 log s(DAC) + 8.0 log s(GT)
+#                          + 1.0 log s(EP)
+# -- gates weighted well above progress, following SafeDrive; see the comment on
+# pdm_score_log below for why, and note these coefficients affect ranking only.
+#
+# A checkpoint from the EPDMS agent will not load the trajectory head here --
+# the head set differs. Start from stage 1 or from scratch.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits_planonly_scratch
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_planonly_scratch_nurec_ckpt
+
+  use_traffic_light_compliance: false
+
+  # Three cameras, always. The rectified logs only rectified CAM_F0/L0/R0; the
+  # other five still carry the pre-rectification pinhole (fx 1545, cx 960,
+  # cy 560) in the same log, so bev_num_cameras: 5 would pull cam_l1/cam_r1 in
+  # with a calibration that does not match their pixels. That is the pair that
+  # cost a 30-epoch run, and DriveSuprimFeatureBuilder now refuses it outright.
+  bev_num_cameras: 3
+
+  # --- BEV segmentation target.  See DriveSuprimConfig.aux_bev_drivable_layers.
+  # LANE + INTERSECTION (the inherited default) paints a roundabout's centre
+  # island as drivable, because INTERSECTION is one polygon over the whole
+  # junction.  LANE + LANE_CONNECTOR keeps the through-lanes and drops the
+  # island, and is what pdm_scorer._road_edge_compliance reads.
+  aux_bev_drivable_layers:
+    - LANE
+    - LANE_CONNECTOR
+  # Inverse frequency of the target as the loss sees it, over the WHOLE training
+  # split: 145.7M cells, all 46,509 frames of all 1,552 clips, counted through
+  # this builder, with the frames the gate below drops excluded since they never
+  # reach the cross-entropy.  Background 64.469% / drivable 35.531%.
+  # The inherited [1.0648, 0.9352] is navtrain's, where drivable is the MAJORITY
+  # class (53.24%) -- the wrong way round here.
+  aux_bev_seg_class_weights: [0.7106, 1.2894]
+  # Frames whose map does not cover the road the car is on contribute nothing to
+  # the segmentation term: 45 of 46,509, 0.10% of the training split.  Their
+  # trajectory labels are untouched, so they stay in the split.
+  aux_bev_seg_require_ego_on_road: true
+
+  pdm_heads:
+    - no_at_fault_collisions
+    - drivable_area_compliance
+    - ego_progress
+
+  # Only the terms above are supervised; everything else is absent from
+  # pdm_heads, so its weight is never read.
+  trajectory_pdm_weight:
+    no_at_fault_collisions: 3.0
+    drivable_area_compliance: 3.0
+    ego_progress: 2.0
+
+  # Ranking coefficients. Back to the DriveSuprim proportions, with gt_compliance
+  # given the same 0.5 as the other two gates.
+  #
+  # These are NOT inference-only, whatever the comment here used to say. The
+  # coarse cut `torch.topk(scores, k=256)` sits in `forward()` with no
+  # `self.training` guard, and RefineTrajHead re-ranks that 256 with the same
+  # `_rank_score` and the same `pdm_imi_rank_weight`. So the weights decide which
+  # candidates the refinement head ever sees, in training as much as at
+  # inference: measured on plan-only epoch 9, moving the gates 8.0 -> 0.5
+  # replaces 26.7% of the top-256. Changing them is a retraining decision.
+  #
+  # The 8.0 gates were mine, following SafeDrive's 48:1 DAC-to-progress ratio.
+  # They cost more than they bought. A gate enters as w*log s(x), which saturates
+  # to 0 as s -> 1, so raising w sharpens the veto on candidates already judged
+  # bad and cannot order the ones judged good; what it does instead is drown
+  # everything else. On the val split (13,729 frames) the shipped weights leave
+  # `gt_compliance` with the largest spread of any term and no influence at all
+  # -- removing it changes none of the 256 survivors, because 80% of candidates
+  # score above 0.9 -- while a cornering proposal, which necessarily runs nearer
+  # the drivable edge, loses 16x more for it than at 0.5. On the 3,127 frames
+  # where the human moves more than 3 m sideways within the horizon, the 8.0
+  # gates pick a straight-ahead trajectory 17.3% of the time against 2.9% at
+  # 0.5.
+  #
+  # CAVEAT, and it is not small: on the open-loop score these weights read
+  # 0.9097 against the 8.0 gates' 0.9356 (10 clips, plan-only epoch 9). Open loop
+  # resets the ego to the recorded state every frame, so it never accumulates the
+  # drift that the closed loop does and cannot see the failure these weights are
+  # chosen against. The number to beat is a closed-loop one; this file is set for
+  # that, not for the score above.
+  # Rank by the product the label is made of, not by a weighted sum of logs.
+  #
+  # The two are the same function only when every weight is 1. What the sum was
+  # actually computing is
+  #     s(NC)**0.5 x s(DAC)**0.5 x s(GT)**0.5 x s(EP)**30
+  # against a label defined as NC x DAC x GT x EP. Half-power gates forgive a
+  # near-zero factor -- s(NC) = 0.005 becomes 0.07, fourteen times more -- so a
+  # proposal the simulator scores a hard zero for collision rides through on the
+  # strength of the others. Measured on the frames where the ego is stopped,
+  # 34.2% of the 256 that survived the coarse cut carried a collision label of
+  # zero while the head read 0.75 for them.
+  #
+  # `pdm_score_log` / `pdm_score_sum` / `pdm_score_sum_scale` below are left in
+  # place but unused while this is on; they are what the ranking falls back to
+  # if it is turned off.
+  pdm_rank_product: true
+  # imi is NOT one of the factors. Tried both on the val split (13,729 frames):
+  # as a factor, s(imi)**e, a candidate imitation likes survives a product the
+  # gates have already killed -- 0.3 x 0.9**0.7 beats 0.9 x 0.001**0.7 -- and the
+  # collision leak climbs with e, 0.0% -> 0.4%. Added instead, the leak does not
+  # move at any weight: what the product zeroed cannot be bought back, because
+  # the additive term alone never outranks a candidate whose product survived.
+  #
+  # It has to be there. The four factors only ask whether a trajectory is SAFE,
+  # and driving straight through a corner is safe -- no collision, on drivable
+  # area, making progress. `gt_compliance` is the only one that knows where the
+  # human went and it scores 80% of candidates full marks. Drop imi and 9.7% of
+  # the 3,127 real turns get a straight line; at 5.0 that is 0.2%.
+  #
+  # softmax(imi) is divided by its own maximum first, so its best candidate
+  # always reads 1.0 and the weight below means the most imi can ever add.
+  # Without that the term is worth whatever the frame's peak happens to be:
+  # measured over 600 val frames that maximum is 0.16 at the median and 0.99 at
+  # worst, so one weight buys a nudge in one frame and, against a product capped
+  # at 1.0, a veto in the next. Normalised and at 1.0 the ranking measures the
+  # same on every count as the un-normalised 5.0 it replaces (leak 1.5% vs 1.7%,
+  # turn error 0.99 vs 0.98 m, missed 0.2% both) and can be read off the file.
+  #
+  # 1.0 and not less: imi has to be worth as much as the whole product to keep
+  # the corners. At 0.5 the model drives straight through 2.0% of the 3,127 real
+  # turns and at 0.3 through 4.9%, against 0.2% here.
+  pdm_rank_imi_normalize: true
+  pdm_imi_rank_weight: 1.0
+  pdm_rank_product_terms:
+    - no_at_fault_collisions
+    - drivable_area_compliance
+    - ego_progress
+  # Exponents stay at 1.0 -- the label's own composition, with nothing added.
+  pdm_rank_product_exponents: {}
+  # Unused while pdm_rank_product is on; kept as the fallback composition.
+  pdm_score_log:
+    no_at_fault_collisions: 0.5
+    drivable_area_compliance: 0.5
+  pdm_score_sum:
+    ego_progress: 5.0
+  pdm_score_sum_scale: 6.0
+
+  # NC is 0/1 here, not 0/0.5/1 -- AlpaSim's at-fault rule has no half state --
+  # and gt_compliance is 0/1 by construction. Nothing needs collapsing.
+  pdm_three_class_terms: []
+
+  # SafeDrive predicts the aggregate as its own head alongside the components
+  # (`pdm_score_loss_weight`), rather than resting the whole ranking on
+  # hand-set log coefficients.  The label already carries the column, so this
+  # costs one head and lets the model learn the composition.  It enters the
+  # ranking as a sigmoid bonus, not a log factor: it is a score, not a gate.
+  pdm_aggregate_head: true
+  pdm_aggregate_loss_weight: 1.0
+  # The head still trains -- `pdm_aggregate_head` above keeps it, and its loss
+  # weight is unchanged -- but it is out of the ranking. As a plain sigmoid it
+  # spans [0, 1], so at weight 1.0 it varies by 0.24 across the 4,096 candidates
+  # against the gates' 10 and imi's 5: it was never audible. Raising it instead
+  # of muting it was tried and is worse, not better -- at 5.0 the standstill
+  # equilibrium speed goes from 0.77 to 1.06 m/s, the wrong way for a car that
+  # already rolls into stopped traffic.
+  pdm_aggregate_rank_weight: 0.0

@@ -1,0 +1,42 @@
+# Stage 3 of 3 -- end-to-end fine-tune -- for the v2_vits architecture.
+#
+# Same recipe as drivesuprim_agent_bevformer_vov_v2_cnx_stage3, re-based onto
+# v2_vits. Perception is unfrozen here and trained alongside the planner.
+#
+# See drivesuprim_agent_bevformer_vov_v2_cnx_stage3.yaml for the measured
+# perception/planning trade-off this stage makes and the two knobs available
+# to bias it (both OFF by default here too, for the same reason -- this file
+# reproduces the plain recipe):
+#   aux_detach_bev=true          perception losses stop at their heads; the
+#                                trunk follows the planner alone
+#   lr_mult_img_backbone=<x>     ViT-S at a reduced lr (note lr_mult_backbone
+#                                is the BEV encoder, not the image backbone --
+#                                the names do not line up)
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_stage3_ckpt
+
+  planning_loss_weight: 1.0
+  freeze_perception: false
+  feasibility_enabled: true
+
+  # Identical across all three stages (BEVFormer's FocalLoss 2.0 / L1 0.25);
+  # seg 4.5 holds det : seg at 2:1 against this config's 4 decoder layers.
+  aux_agent_class_weight: 2.0
+  aux_agent_box_weight: 0.25
+  aux_bev_seg_weight: 4.5
+
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+checkpoint_path: null      # train.sh passes the stage-2 ckpt via CKPT
+lr: 1e-4

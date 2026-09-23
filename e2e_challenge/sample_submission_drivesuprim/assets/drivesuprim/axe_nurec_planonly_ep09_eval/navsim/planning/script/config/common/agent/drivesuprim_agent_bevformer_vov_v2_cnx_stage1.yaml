@@ -1,0 +1,60 @@
+# Stage 1 of 3 -- perception -- for the v2_cnx architecture.
+#
+# drivesuprim_agent_bevformer_vov_stage1 cannot be reused: it inherits from the
+# v1 base (V2-99, 160x160, 4 FPN levels, 6 encoder layers), so composing it with
+# v2_cnx would fight over the architecture keys. This carries the SAME stage-1
+# training recipe onto the v2_cnx architecture instead.
+#
+# v2_cnx needs its own stage 1 regardless of the schedule: the image backbone
+# changed (V2-99 -> ConvNeXt V2-Tiny) and the encoder lost two layers, so no
+# existing checkpoint loads into it.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_stage1_ckpt
+
+  # Perception only. A multiply-by-zero, not a skip: the trajectory head still
+  # runs and still receives (zero) gradients, so DDP does not report unused
+  # parameters. The PDM score pickles are still read, so
+  # ori_vocab_pdm_score_full_path must stay valid.
+  planning_loss_weight: 0.0
+  freeze_perception: false
+
+  # The one stage where the gate is off. planning_loss_weight is 0, so every
+  # planning gradient is multiplied away and the gate cannot change a single
+  # weight -- it would only spend time building the mask per step.
+  feasibility_enabled: false
+
+  # Detection weights are BEVFormer's (FocalLoss 2.0 / L1 0.25, no IoU term) and
+  # are identical in all three stages -- EAD controls the schedule with planning
+  # on/off and the perception freeze alone, not by re-weighting.
+  aux_agent_class_weight: 2.0
+  aux_agent_box_weight: 0.25
+
+  # 4.5, NOT the 6.75 the v1 stage-1 config uses. Both sides sum every decoder
+  # layer at full weight, so the 2 : 1 detection : segmentation balance depends
+  # on the decoder depth, and v2_cnx runs 4 layers where v1 runs 6:
+  #   v1      : 6 layers x (2.0 cls + 0.25 box) = 13.5  -> seg 6.75
+  #   v2_cnx  : 4 layers x (2.0 cls + 0.25 box) =  9.0  -> seg 4.5
+  # Inherited from v2 already; restated here so this file is self-contained and
+  # a future edit to the det weights has one obvious place to follow.
+  aux_bev_seg_weight: 4.5
+
+  # EAD's schedule: cos, 1 warmup epoch, min_lr 1e-6, scheduler_epoch 30.
+  # scheduler_epoch is 30 in ALL of EAD's phases even though they run for
+  # 20 / 5 / 30 epochs -- the cosine is deliberately truncated. This stage runs
+  # 20 epochs, so pass EPOCHS=20; do NOT 'fix' scheduler_epoch to match it.
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  # BEVFormer and UniAD both use AdamW(wd=0.01) with an iteration-based linear
+  # warmup of 500 steps from lr/3, plus grad_clip max_norm=35 (GRAD_CLIP).
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+lr: 1e-4

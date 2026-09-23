@@ -1,0 +1,27 @@
+# Deployment preset for the ConvNeXt spec: adds the inference-time BEV cache.
+#
+# This is the inference half of what BEVFormer does. Its simple_test() keeps
+# prev_bev in self.prev_frame_info and never re-encodes past frames; ours keeps
+# the per-frame BEVs (un-warped, so they stay valid as they recede) and only
+# encodes the current frame. Same saving, different fusion: BEVFormer is
+# recurrent and needs one tensor, concat+conv needs seq_len-1 of them.
+#
+# Verified bit-identical to the uncached path on overlapping windows
+# ([0,1,2] then [1,2,3] of one scene): max difference 0.000e+00.
+#
+# Caller must feed frames in order and call agent.reset_stream() on any
+# discontinuity -- BEVFormer does the same thing by comparing scene_token.
+# Cannot be used for the NAVSIM benchmark: it scores independent scenarios whose
+# tokens sit 7 seconds apart, so nothing is ever cacheable.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx
+  - _self_
+
+config:
+  bev_streaming: true
+  # bf16 for the encoder. Unlike fp16 it cannot overflow -- same exponent range
+  # as fp32 -- so the fp32 pin that exists for fp16's sake is not needed. This
+  # DOES change the numbers, unlike the cache above, so treat it as an accuracy
+  # knob and re-check EPDMS before shipping it.
+  bev_encoder_dtype: bf16
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_deploy_ckpt

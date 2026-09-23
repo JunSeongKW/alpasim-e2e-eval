@@ -1,0 +1,19 @@
+# Submission image: the validated egobox driver plus the environment it needs.
+#
+# The official evaluator sets only ALPASIM_DRIVER_HOST, ALPASIM_DRIVER_PORT,
+# ALPASIM_CONTESTANT_REPLICA_INDEX and ALPASIM_CONTESTANT_REPLICAS, so every
+# DRIVESUPRIM_* flag the 441-clip validation relied on has to be baked in.
+# Without the first line the submitted image keeps the API ego box size but
+# drops the +1.467 m rig->box offset -- a configuration that was never measured.
+#
+# Nothing but metadata is added on purpose: the weights and the Python code stay
+# byte-identical to what was validated.
+FROM alpasim-e2e-drivesuprim-stage3:ep24-egobox
+
+ENV DRIVESUPRIM_EGO_CENTER_OFFSET=1
+ENV DRIVESUPRIM_EGO_FOOTPRINT_FROM_API=1
+# Fail loudly instead of serving a driver whose policy never loaded; a silent
+# failure in official evaluation costs every scene.
+ENV DRIVESUPRIM_REQUIRE_POLICY_FOR_VERSION=1
+# 16 replicas load the checkpoint at once on the evaluation host.
+ENV DRIVESUPRIM_SESSION_STARTUP_TIMEOUT_S=1200

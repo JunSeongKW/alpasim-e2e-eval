@@ -1,0 +1,12 @@
+ARG BASE_IMAGE=696254625193.dkr.ecr.us-east-1.amazonaws.com/teams/axe:axe-v9
+FROM ${BASE_IMAGE}
+
+# Keep the submitted AXE-v9 runtime byte-for-byte and replace only its model
+# weights.  The build context intentionally contains just checkpoint.ckpt.
+COPY checkpoint.ckpt /app/assets/drivesuprim/axe_nurec_vits.ckpt
+
+ARG CHECKPOINT_SHA256
+ARG CHECKPOINT_SOURCE
+LABEL org.alpasim.checkpoint.sha256="${CHECKPOINT_SHA256}" \
+      org.alpasim.checkpoint.source="${CHECKPOINT_SOURCE}" \
+      org.alpasim.runtime.base="axe-v9"

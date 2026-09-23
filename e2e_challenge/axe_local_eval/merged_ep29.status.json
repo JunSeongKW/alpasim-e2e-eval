@@ -1,0 +1,24 @@
+{
+  "phase": "complete",
+  "updated_at": "2026-09-16T17:50:37.619635+09:00",
+  "pid": 271211,
+  "run": "/home/kaist5/data/junseong/AlpaSim-E2E-Challenge/alpasim/runs/leaderboard-merged-ep29-bestmpc",
+  "leaderboard": "/home/kaist5/data/junseong/AlpaSim-E2E-Challenge/alpasim/runs/leaderboard-merged-ep29-integrated",
+  "completed_clips": 441,
+  "result": {
+    "rank": "1",
+    "point_estimate_rank": "2",
+    "rank_lo": "1.0",
+    "rank_hi": "3.0",
+    "rank_spread": "2.0",
+    "subject_id": "merged-ep29-bestmpc",
+    "is_reference": "False",
+    "policy_capability_score": "2578.9441939199396",
+    "raw_policy_capability_score": "1.4581522941589355",
+    "policy_capability_score_std": "51.36304755184041",
+    "raw_policy_capability_score_std": "0.11804062128067017",
+    "average_scene_score": "0.704633692724123",
+    "avg_dist_between_incidents_at_fault": "1.2409254148734796"
+  },
+  "deleted_raw_rollout_files": 441
+}

@@ -1,0 +1,71 @@
+# Stage 2 of 3 -- planning on a FROZEN perception.
+# (EAD phase 2: freeze_perception=True, no_planning=False, loads phase-1 weights.)
+#
+# The point of this stage is to let the trajectory head stabilise against a
+# perception that cannot move under it. Freezing is what protects detection and
+# segmentation here -- not a reduced loss weight. The auxiliary losses are still
+# computed at the same weights as stage 1, but no gradient reaches the frozen
+# modules, so they only serve as a monitor.
+defaults:
+  - drivesuprim_agent_bevformer_vov
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_stage2_ckpt
+
+  planning_loss_weight: 1.0
+  freeze_perception: true
+
+  # Feasibility gate ON from here. Stage 1 has planning_loss_weight=0, so gating
+  # there would only burn compute; this is the first stage whose trajectory head
+  # actually learns, and it must learn on the filtered candidate set it will be
+  # given at inference. The gate reads the model's OWN detection + segmentation,
+  # never GT -- see the feasibility_* block in drivesuprim_config.py for why.
+  # Perception is frozen for this whole stage, so the gate is stationary: the
+  # refinement head sees one fixed candidate distribution rather than one that
+  # drifts as detection improves.
+  feasibility_enabled: true
+
+  # unchanged from stage 1
+  aux_agent_class_weight: 2.0
+  # 8 : 1, as BEVFormer and UniAD both use (FocalLoss 2.0 / L1 0.25). UniAD is
+  # the closest reference available: BEVFormer backbone, 6 decoder layers,
+  # same weights in both of its stages. EAD's 5 : 2 = 2.5 : 1 comes from a
+  # 4-layer GKT head.
+  aux_agent_box_weight: 0.25
+  # 6.75 keeps EAD's detection : drivable-segmentation balance of 2 : 1.
+  # Both sides sum every decoder layer at full weight, so the comparison is
+  #   EAD   : 4 layers x (5.0 cls + 2.0 box) = 28  vs  drivable 14  -> 2 : 1
+  #   ours  : 6 layers x (2.0 cls + 0.25 box) = 13.5 -> seg 6.75  -> 2 : 1
+  # Taking EAD's per-layer seg : cls ratio (14 : 5) literally would leave
+  # detection 1.5x heavier here, because this head has 6 layers to EAD's 4.
+  # Rescale this whenever aux_bevformer_det_layers or the det weights change.
+  aux_bev_seg_weight: 6.75
+
+  # EAD's schedule: cos, 1 warmup epoch, min_lr 1e-6, scheduler_epoch 30.
+  # scheduler_epoch is 30 in ALL of EAD's phases even though they run for
+  # 20 / 5 / 30 epochs -- the cosine is deliberately truncated. This stage
+  # runs 5 epochs (planning on a frozen perception), so pass EPOCHS=5 to the training script;
+  # do NOT 'fix' scheduler_epoch to match it.
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  # BEVFormer and UniAD both use AdamW(wd=0.01) with an iteration-based linear
+  # warmup of 500 steps from lr/3, plus grad_clip max_norm=35 (passed by the
+  # training script as GRAD_CLIP).
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+# Initialise from stage 1, weights only (EAD phase 2 uses
+# `agent.checkpoint_path=`). The optimizer, epoch counter and LR schedule
+# all start fresh -- which is required here, since Lightning's full resume
+# would restore stage 1's epoch counter (20) and this stage would stop
+# immediately at max_epochs=5.
+# Loading is done by DriveSuprimAgent.load_pretrained_weights(); it raises
+# if the checkpoint does not match this architecture.
+checkpoint_path: null
+# EAD passes lr=1e-4 on the command line for every phase.
+lr: 1e-4

@@ -1,0 +1,4 @@
+# 디스크 정리 후 재개. 이전 기록은 sweep_archive/ 에 집계만 보존.
+W_base|재개 기준선 (전부 1.0)
+W_dac5|fine DAC 0.5 재확인
+W_a1|fine NC.3 DAC.3 EP2 재확인

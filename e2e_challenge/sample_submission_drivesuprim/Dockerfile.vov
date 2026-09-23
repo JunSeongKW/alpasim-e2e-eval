@@ -1,0 +1,95 @@
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python-is-python3 \
+        git \
+        libglib2.0-0 \
+        libgl1 \
+    && python -m pip install --upgrade pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Official PyTorch 2.0.1 CUDA 11.8 wheels.
+RUN python -m pip install \
+    torch==2.0.1 \
+    torchvision==0.15.2 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV XDG_CACHE_HOME=/tmp/.cache
+ENV TORCH_HOME=/tmp/torch
+ENV MPLCONFIGDIR=/tmp/matplotlib
+ENV CUDA_CACHE_PATH=/tmp/nv
+ENV ALPASIM_DRIVER_LOG_DIR=/run/alpasim-driver
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
+ENV TORCH_NUM_THREADS=1
+ENV TORCH_NUM_INTEROP_THREADS=1
+
+WORKDIR /app
+
+COPY src/grpc /tmp/alpasim_grpc
+# AlpaSim's proto build helper uses contextlib.chdir (Python 3.11+), while the
+# released DriveSuprim/PyTorch 2.0 runtime is Python 3.10. Add the equivalent
+# compatibility helper only inside the temporary build tree.
+COPY e2e_challenge/sample_submission_drivesuprim/scripts/patch_grpc_py310.py /tmp/patch_grpc_py310.py
+RUN python /tmp/patch_grpc_py310.py \
+    && pip install /tmp/alpasim_grpc \
+    && rm -rf /tmp/alpasim_grpc /tmp/patch_grpc_py310.py
+
+COPY e2e_challenge/sample_submission_drivesuprim/requirements.txt /tmp/requirements.txt
+# mmcv declares unbounded NumPy/OpenCV dependencies. Restore the versions
+# required by DriveSuprim after mim has finished resolving its packages.
+RUN pip install -r /tmp/requirements.txt \
+      && pip install "mmcv-full==1.7.2" \
+           -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html \
+           --only-binary mmcv-full \
+      && pip install "mmdet==2.28.2" mmengine \
+      && pip uninstall -y opencv-python opencv-python-headless \
+      && pip install --force-reinstall \
+           "numpy==1.23.4" \
+           "opencv-python-headless==4.9.0.80" \
+      && rm -f /tmp/requirements.txt
+
+# The released DriveSuprim source is staged by scripts/prepare_assets.sh.
+COPY e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/source/navsim /app/navsim
+COPY e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/drivesuprim_vov.ckpt /app/assets/drivesuprim/drivesuprim_vov.ckpt
+COPY e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/dd3d_det_final.pth /app/assets/drivesuprim/dd3d_det_final.pth
+COPY e2e_challenge/sample_submission_drivesuprim/assets/drivesuprim/test_8192_kmeans.npy /app/assets/drivesuprim/test_8192_kmeans.npy
+
+# Reuse only the tested AlpaSim service/trajectory plumbing from the VAVAM
+# sample. Model loading and inference live entirely in drivesuprim_challenge.
+COPY e2e_challenge/sample_submission_vavam/vavam_challenge /app/vavam_challenge
+COPY e2e_challenge/sample_submission_drivesuprim/drivesuprim_challenge /app/drivesuprim_challenge
+
+ENV ALPASIM_DRIVER_HOST=0.0.0.0
+ENV ALPASIM_DRIVER_PORT=6789
+ENV DRIVESUPRIM_REQUIRE_POLICY_FOR_VERSION=0
+ENV DRIVESUPRIM_SESSION_STARTUP_TIMEOUT_S=600
+ENV DRIVESUPRIM_MAX_BATCH_SIZE=2
+ENV DRIVESUPRIM_BATCH_WAIT_MS=5
+ENV DRIVESUPRIM_INFERENCE_INTERVAL_US=100000
+ENV ALPASIM_DRIVER_GRPC_WORKERS=8
+ENV DRIVESUPRIM_ASSET_DIR=/app/assets/drivesuprim
+
+ENV DRIVESUPRIM_BACKBONE_TYPE=vov
+ENV DRIVESUPRIM_CHECKPOINT_PATH=/app/assets/drivesuprim/drivesuprim_vov.ckpt
+ENV DRIVESUPRIM_BACKBONE_PATH=/app/assets/drivesuprim/dd3d_det_final.pth
+ENV DRIVESUPRIM_VOCAB_PATH=/app/assets/drivesuprim/test_8192_kmeans.npy
+
+# Match the validated PAI latency configuration: autocast FP16 keeps model
+# parameters in FP32 while executing supported CUDA operations in FP16.
+# ENV DRIVESUPRIM_USE_FP16=1
+# ENV DRIVESUPRIM_NATIVE_FP16=0
+ENV DRIVESUPRIM_CHANNELS_LAST=0
+EXPOSE 6789
+
+CMD ["python", "-m", "drivesuprim_challenge.driver"]

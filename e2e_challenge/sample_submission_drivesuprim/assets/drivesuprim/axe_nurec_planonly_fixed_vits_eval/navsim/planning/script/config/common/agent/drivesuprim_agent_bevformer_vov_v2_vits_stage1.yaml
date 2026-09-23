@@ -1,0 +1,56 @@
+# Stage 1 of 3 -- perception -- for the v2_vits architecture.
+#
+# Same stage-1 recipe as drivesuprim_agent_bevformer_vov_v2_cnx_stage1, re-based
+# onto v2_vits so the architecture keys (DINOv3 ViT-S backbone, 56x56 grid, 3
+# encoder layers, 7 classes, pillar z split) come from that line instead.
+#
+# v2_vits needs its own stage 1 regardless of the schedule: the image backbone
+# changed (ConvNeXt V2-Tiny / ResNet-50 -> DINOv3 ViT-Small/patch16, single-scale
+# + synthesised pyramid instead of a genuine multi-scale CNN), so no existing
+# checkpoint loads into it.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_stage1_ckpt
+
+  # Perception only. A multiply-by-zero, not a skip: the trajectory head still
+  # runs and still receives (zero) gradients, so DDP does not report unused
+  # parameters. The PDM score pickles are still read, so
+  # ori_vocab_pdm_score_full_path must stay valid.
+  planning_loss_weight: 0.0
+  freeze_perception: false
+
+  # The one stage where the gate is off. planning_loss_weight is 0, so every
+  # planning gradient is multiplied away and the gate cannot change a single
+  # weight -- it would only spend time building the mask per step.
+  feasibility_enabled: false
+
+  # Detection weights are BEVFormer's (FocalLoss 2.0 / L1 0.25, no IoU term) and
+  # are identical in all three stages -- EAD controls the schedule with planning
+  # on/off and the perception freeze alone, not by re-weighting.
+  aux_agent_class_weight: 2.0
+  aux_agent_box_weight: 0.25
+
+  # 4.5, matching v2_cnx/v2_r50: this architecture also runs 4 decoder layers,
+  # so det : seg holds at the same 2:1 ratio.
+  #   4 layers x (2.0 cls + 0.25 box) = 9.0  -> seg 4.5
+  aux_bev_seg_weight: 4.5
+
+  # EAD's schedule: cos, 1 warmup epoch, min_lr 1e-6, scheduler_epoch 30.
+  # scheduler_epoch is 30 in ALL of EAD's phases even though they run for
+  # 20 / 5 / 30 epochs -- the cosine is deliberately truncated. This stage runs
+  # 20 epochs, so pass EPOCHS=20; do NOT 'fix' scheduler_epoch to match it.
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  # BEVFormer and UniAD both use AdamW(wd=0.01) with an iteration-based linear
+  # warmup of 500 steps from lr/3, plus grad_clip max_norm=35 (GRAD_CLIP).
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+lr: 1e-4

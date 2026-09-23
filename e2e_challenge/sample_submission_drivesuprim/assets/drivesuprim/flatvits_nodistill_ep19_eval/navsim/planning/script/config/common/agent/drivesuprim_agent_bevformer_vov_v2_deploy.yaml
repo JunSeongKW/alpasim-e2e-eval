@@ -1,0 +1,24 @@
+# Deployment preset: v2 plus the streaming temporal cache.
+#
+# Verified equivalent to the full path: feeding overlapping windows [0,1,2] then
+# [1,2,3] of one scene's history, the cached forward matched the uncached one to
+# 0.000e+00 (bit-identical). An earlier check that showed a 24% gap was feeding
+# navtest tokens, which sit 7 SECONDS apart and share no frames -- there was
+# nothing to cache, not a bug in the cache.
+#
+# Requirements, all on the caller:
+#   - frames arrive in order, spaced as the model expects (bev_seq_len apart)
+#   - agent.reset_stream() on any discontinuity: new log, new drive, dropped
+#     frames, a seek. A stale cache is warped by an ego pose that never happened.
+#   - inference only. Construction raises if config.training is set.
+#
+# NOT usable for the NAVSIM benchmark: it scores independent scenarios in
+# arbitrary order, so the cache can never hit there.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2
+  - _self_
+
+config:
+  bev_streaming: true
+  bev_history_encoder_layers: 0   # history is reused, never re-encoded
+  ckpt_path: drivesuprim_bevformer_vov_v2_deploy_ckpt

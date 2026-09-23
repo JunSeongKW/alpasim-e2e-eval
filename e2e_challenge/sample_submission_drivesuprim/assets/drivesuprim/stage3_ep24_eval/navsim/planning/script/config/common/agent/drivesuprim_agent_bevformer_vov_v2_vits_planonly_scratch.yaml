@@ -1,0 +1,53 @@
+# Planning objective only, and NO stage 1: the image backbone starts from its
+# own DINOv3 pre-training and everything downstream starts from scratch.
+#
+# vits analog of drivesuprim_agent_bevformer_vov_v2_cnx_planonly_scratch. There
+# is no vits equivalent of an intermediate "stage2_planonly" file (v2_cnx has
+# one; v2_vits does not need a separate file for it) -- this config folds that
+# file's three overrides (planning_loss_weight / freeze_perception /
+# use_aux_heads / feasibility_enabled) directly on top of
+# drivesuprim_agent_bevformer_vov_v2_vits_stage2, which is exactly what
+# drivesuprim_agent_bevformer_vov_v2_cnx_stage2_planonly does on top of
+# drivesuprim_agent_bevformer_vov_v2_cnx_stage2. Resolved keys are otherwise
+# identical to the cnx scratch config; only the backbone (via the vits_stage2
+# base instead of cnx_stage2) differs -- see drivesuprim_agent_bevformer_vov_v2_vits_stage1.yaml
+# for the backbone field diff against v2_cnx (bevformer_img_backbone_type: vits,
+# bevformer_vit_name: vit_small_patch16_dinov3, bevformer_vit_pretrained: true,
+# bevformer_vits_ms_up/_ms_down: 1, etc. -- all inherited here from
+# drivesuprim_agent_bevformer_vov_v2_vits, not restated).
+#
+# Identical to drivesuprim_agent_bevformer_vov_v2_vits_stage2 in every resolved
+# key except ckpt_path and the planning-only overrides below. The difference
+# from a real stage-1-initialised run is entirely in how it is LAUNCHED: run it
+# WITHOUT the CKPT env var, so no stage-1 checkpoint is loaded. checkpoint_path
+# is null here and train.sh only sets it when CKPT is present -- which is why
+# this file exists as a separate agent name: it keeps the two runs' checkpoints
+# apart and makes the intent readable from the experiment directory.
+#
+# What each component starts from:
+#   image backbone   timm vit_small_patch16_dinov3, pretrained (bevformer_vit_pretrained: true)
+#   BEV encoder      random
+#   temporal_fuse    random
+#   planner          random (as in every stage -- stage 1 never trains it,
+#                    planning_loss_weight is 0 there)
+#
+# WHY. Mirrors the v2_cnx planning-only / from-scratch ablation: does a
+# DINOv3-pretrained backbone plus the trajectory objective alone (no
+# perception heads, no feasibility gate, no stage-1 perception pre-training)
+# match or beat the staged pipeline? See v2_cnx_planonly_scratch.yaml for the
+# full reasoning; nothing about that argument is backbone-specific.
+#
+# Same caveats as the planning-only run: no mAP or seg IoU in the logs (the
+# heads do not exist), and the result cannot feed a stage 3 that uses the gate
+# without training heads on the resulting trunk first.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits_stage2
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_planonly_scratch_ckpt
+
+  planning_loss_weight: 1.0
+  freeze_perception: false     # backbone + BEV encoder train, on planning loss alone
+  use_aux_heads: false         # no detection/segmentation branch at all
+  feasibility_enabled: false   # nothing left for the gate to read

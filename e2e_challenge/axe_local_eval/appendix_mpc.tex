@@ -1,0 +1,50 @@
+% ---------------------------------------------------------------------
+%  MPC controller settings, for the appendix.
+%  Values read back from the generated controller-config.yaml of the
+%  submitted run on 2026-09-16; defaults from
+%  src/wizard/configs/controller/default.yaml.
+%  Requires \usepackage{booktabs}.
+% ---------------------------------------------------------------------
+
+\section{Controller settings}
+\label{app:mpc}
+
+The selected trajectory is tracked in closed loop by AlpaSim's MPC controller.
+Controller gains are a submitted artefact rather than a fixed part of the
+evaluation contract; all values below lie inside the published bounds, $[0,10]$
+for the six weights and integer $[0,19]$ for \texttt{idx\_start\_penalty}.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+Setting & AlpaSim default & \textbf{Ours} \\
+\midrule
+\texttt{mpc\_implementation}              & \texttt{linear} & \textbf{\texttt{nonlinear}} \\
+\texttt{n\_horizon}                       & 20   & 20 \\
+\texttt{dt\_mpc}                          & 0.1  & 0.1 \\
+\midrule
+\texttt{long\_position\_weight}           & 2.0  & \textbf{0.5} \\
+\texttt{lat\_position\_weight}            & 1.0  & \textbf{6.0} \\
+\texttt{idx\_start\_penalty}              & 10   & \textbf{3} \\
+\texttt{heading\_weight}                  & 1.0  & 1.0 \\
+\texttt{acceleration\_weight}             & 0.1  & 0.1 \\
+\texttt{rel\_front\_steering\_angle\_weight} & 5.0 & 5.0 \\
+\texttt{rel\_acceleration\_weight}        & 1.0  & 1.0 \\
+\bottomrule
+\end{tabular}
+\caption{MPC controller configuration. Four settings differ from the AlpaSim
+defaults; the remaining four are unchanged.}
+\label{tab:mpc}
+\end{table}
+
+Equivalently, as Hydra overrides on top of the \texttt{nonlinear} controller
+preset:
+
+\begin{verbatim}
+controller=nonlinear
+controller.gains.long_position_weight=0.5
+controller.gains.lat_position_weight=6.0
+controller.gains.idx_start_penalty=3
+\end{verbatim}

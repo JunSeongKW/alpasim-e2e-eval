@@ -1,0 +1,34 @@
+# Flat stitched ViT-S, planning-only, with the loss budget moved onto DAC.
+#
+# Measured on full val at epoch 19 (13,730 frames, the nodistill run):
+#
+#   no_at_fault_collisions   0.9965    weight 3.0
+#   drivable_area_compliance 0.9630    weight 3.0    <- 90% of all score loss
+#   ego_progress             0.9987    weight 2.0
+#
+# DAC fails on 3.70% of frames and 98.8% of those failures are DAC ALONE -- NC
+# and EP are already right on the same frame. Two terms that are effectively
+# solved were still drawing 5.0 of the 8.0 the trunk is asked to satisfy.
+#
+# The total is held near where it was (8.0 -> 8.5) so the imitation term, which
+# stays at 1.0, does not silently change its relative pull. NC is halved rather
+# than dropped: it sits at 0.9965 because it is being trained, not because it
+# is free.
+#
+# PARENT IS THE PLAIN FLAT AGENT, NOT THE no-aggregate ONE. Removing the
+# aggregate head measured -0.0250 on full val (t = -13.09), the worst of the
+# five ablations: its rank weight is zero, but its LOSS weight is 1.0, and
+# predicting the product NC x DAC x EP evidently constrains the three heads to
+# agree with each other. This variant keeps it.
+
+defaults:
+  - drivesuprim_agent_flatvits_planonly_nurec
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_flatvits_dacw_planonly_nurec_ckpt
+
+  trajectory_pdm_weight:
+    no_at_fault_collisions: 1.5
+    drivable_area_compliance: 6.0
+    ego_progress: 1.0

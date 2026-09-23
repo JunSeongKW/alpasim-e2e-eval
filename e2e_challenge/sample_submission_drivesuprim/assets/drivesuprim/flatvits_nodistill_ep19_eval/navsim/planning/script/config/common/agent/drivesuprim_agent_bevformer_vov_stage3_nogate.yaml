@@ -1,0 +1,9 @@
+# Stage 3 ABLATION: identical to stage 3 except the feasibility gate is OFF.
+# Pairs with drivesuprim_agent_bevformer_vov_stage2_nogate; see that file.
+defaults:
+  - drivesuprim_agent_bevformer_vov_stage3
+  - _self_
+
+config:
+  feasibility_enabled: false
+  ckpt_path: drivesuprim_bevformer_vov_stage3_nogate_ckpt

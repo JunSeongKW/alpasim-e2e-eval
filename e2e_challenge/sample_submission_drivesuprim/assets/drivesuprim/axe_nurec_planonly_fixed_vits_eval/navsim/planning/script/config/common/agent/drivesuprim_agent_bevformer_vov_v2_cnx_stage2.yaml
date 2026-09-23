@@ -1,0 +1,41 @@
+# Stage 2 of 3 -- planner on frozen perception -- for the v2_cnx architecture.
+#
+# Same recipe as drivesuprim_agent_bevformer_vov_stage2, re-based onto v2_cnx so
+# the architecture keys (ConvNeXt backbone, 56x56 grid, 3 encoder layers, 7
+# classes, pillar z split) come from this line rather than v1's.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_stage2_ckpt
+
+  # Planning switched on, perception held fixed. Stage 1 already trained the
+  # detection and segmentation heads; freezing them here means the planner
+  # learns against a STABLE feasibility gate instead of one that moves under it.
+  planning_loss_weight: 1.0
+  freeze_perception: true
+
+  # The gate is on from here. It reads the frozen heads' drivable map and boxes,
+  # so refinement is trained on the same candidate set it will see at inference
+  # -- leaving it off in training and on at test time is a train/test mismatch.
+  feasibility_enabled: true
+
+  # Detection weights are identical across all three stages (BEVFormer's
+  # FocalLoss 2.0 / L1 0.25); seg is 4.5 to hold det : seg at 2:1 against this
+  # config's 4 decoder layers. Restated so the file is self-contained.
+  aux_agent_class_weight: 2.0
+  aux_agent_box_weight: 0.25
+  aux_bev_seg_weight: 4.5
+
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+checkpoint_path: null      # train.sh passes the stage-1 ckpt via CKPT
+lr: 1e-4

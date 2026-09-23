@@ -1,0 +1,14 @@
+data_split: trainval
+scene_filter:
+  _target_: navsim.common.dataclasses.SceneFilter
+  num_history_frames: 4
+  num_future_frames: 8
+  # Converted NuRec logs are already sampled at 0.5 s. Advance the 12-frame
+  # history/future window by one stored frame so every available training
+  # window is scored (12 would retain only non-overlapping 6 s windows).
+  frame_interval: 1
+  has_route: true
+  max_scenes: null
+  log_names: null
+  tokens: null
+  include_synthetic_scenes: false

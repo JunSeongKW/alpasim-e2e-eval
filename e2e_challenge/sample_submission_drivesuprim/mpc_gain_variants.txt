@@ -1,0 +1,15 @@
+# name | hydra overrides
+# 기준: long=2.0 lat=1.0 head=1.0 accel=0.1 rel_steer=5.0 rel_accel=1.0 idx_start=10 n_horizon=20
+base|
+track|controller.gains.lat_position_weight=6.0 controller.gains.heading_weight=3.0 controller.gains.idx_start_penalty=3
+smooth|controller.gains.rel_front_steering_angle_weight=20.0 controller.gains.rel_acceleration_weight=5.0 controller.gains.acceleration_weight=1.0
+track_smooth|controller.gains.lat_position_weight=4.0 controller.gains.heading_weight=2.0 controller.gains.idx_start_penalty=4 controller.gains.rel_front_steering_angle_weight=12.0 controller.gains.rel_acceleration_weight=3.0 controller.gains.acceleration_weight=0.5
+lat_first|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+horizon40|controller.n_horizon=40 controller.gains.idx_start_penalty=4 controller.gains.lat_position_weight=3.0
+# --- 2차 실험: 최적조합(long 0.5 / lat 6.0 / idx 3) 기준으로 한 축씩 ---
+idx1|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=1
+idx2|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=2
+head4|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.heading_weight=4.0
+accel2|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.acceleration_weight=2.0
+long1|controller.gains.long_position_weight=1.0 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+dt005|controller.dt_mpc=0.05 controller.n_horizon=40 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=6

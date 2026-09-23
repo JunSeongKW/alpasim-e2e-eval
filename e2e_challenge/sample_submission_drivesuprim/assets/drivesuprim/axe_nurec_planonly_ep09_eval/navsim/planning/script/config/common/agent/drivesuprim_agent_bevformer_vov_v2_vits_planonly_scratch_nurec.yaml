@@ -1,0 +1,123 @@
+# ViT-S planning-only, trained against the NuRec score.
+#
+# The label these targets come from is `NC x DAC x GT x EP` -- AlpaSim's scene
+# score, not NAVSIM's EPDMS. Five of the eight sub-scores the base agent
+# predicts are not in it, and on NuRec their exported values are held constants
+# rather than measurements:
+#
+#   lane_keeping                 fired on 27.1% of frames; the ClipGT lane
+#                                annotation sits about a metre off the driven
+#                                line, so it measured the map, not the driving
+#   driving_direction_compliance fired on 2.6%; it tests route membership, and
+#                                inspection found the human aligned to its lane
+#                                within 2.1 degrees on every frame it flagged
+#   history_comfort              8.0%; jerk and yaw-rate limits applied to an
+#                                MPC rollout, i.e. the controller's ripple
+#   traffic_light_compliance     constant 1.0 -- NuRec publishes no signal state
+#   time_to_collision_..._bound  0.5%, and two thirds of those frames were
+#                                already zeroed by collision.  AlpaSim has no
+#                                such term.
+#
+# Keeping heads on those is not neutral: a head trained to predict a constant
+# spends capacity and contributes a term to the ranking score that cannot
+# discriminate. They are dropped from `pdm_heads`, so the parameters do not
+# exist at all.
+#
+# `gt_compliance` replaces them. It is new -- a proposal that drifts 4 m off the
+# recorded run voids the scene in AlpaSim the way a collision does -- and it
+# multiplies, so it enters `pdm_score_log` beside NC and DAC.
+#
+# Ranking score becomes
+#     0.3 log softmax(imi) + 8.0 log s(NC) + 8.0 log s(DAC) + 8.0 log s(GT)
+#                          + 1.0 log s(EP)
+# -- gates weighted well above progress, following SafeDrive; see the comment on
+# pdm_score_log below for why, and note these coefficients affect ranking only.
+#
+# A checkpoint from the EPDMS agent will not load the trajectory head here --
+# the head set differs. Start from stage 1 or from scratch.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits_planonly_scratch
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_planonly_scratch_nurec_ckpt
+
+  use_traffic_light_compliance: false
+
+  # Three cameras, always. The rectified logs only rectified CAM_F0/L0/R0; the
+  # other five still carry the pre-rectification pinhole (fx 1545, cx 960,
+  # cy 560) in the same log, so bev_num_cameras: 5 would pull cam_l1/cam_r1 in
+  # with a calibration that does not match their pixels. That is the pair that
+  # cost a 30-epoch run, and DriveSuprimFeatureBuilder now refuses it outright.
+  bev_num_cameras: 3
+
+  # --- BEV segmentation target.  See DriveSuprimConfig.aux_bev_drivable_layers.
+  # LANE + INTERSECTION (the inherited default) paints a roundabout's centre
+  # island as drivable, because INTERSECTION is one polygon over the whole
+  # junction.  LANE + LANE_CONNECTOR keeps the through-lanes and drops the
+  # island, and is what pdm_scorer._road_edge_compliance reads.
+  aux_bev_drivable_layers:
+    - LANE
+    - LANE_CONNECTOR
+  # Inverse frequency of the target as the loss sees it, over the WHOLE training
+  # split: 145.7M cells, all 46,509 frames of all 1,552 clips, counted through
+  # this builder, with the frames the gate below drops excluded since they never
+  # reach the cross-entropy.  Background 64.469% / drivable 35.531%.
+  # The inherited [1.0648, 0.9352] is navtrain's, where drivable is the MAJORITY
+  # class (53.24%) -- the wrong way round here.
+  aux_bev_seg_class_weights: [0.7106, 1.2894]
+  # Frames whose map does not cover the road the car is on contribute nothing to
+  # the segmentation term: 45 of 46,509, 0.10% of the training split.  Their
+  # trajectory labels are untouched, so they stay in the split.
+  aux_bev_seg_require_ego_on_road: true
+
+  pdm_heads:
+    - no_at_fault_collisions
+    - drivable_area_compliance
+    - gt_compliance
+    - ego_progress
+
+  # Only the terms above are supervised; everything else is absent from
+  # pdm_heads, so its weight is never read.
+  trajectory_pdm_weight:
+    no_at_fault_collisions: 3.0
+    drivable_area_compliance: 3.0
+    gt_compliance: 3.0
+    ego_progress: 2.0
+
+  # Ranking coefficients. These never enter training -- they only decide which
+  # of the trained heads' candidates wins -- so they can be swept without
+  # retraining, and they should be.
+  #
+  # The starting point follows SafeDrive's shipped values (test.sh: NC 16,
+  # DAC 48, imi 0.3, and progress entering with weight ~1 rather than 6), not
+  # the ones this file used to hold. Those were mine and pointed the other way:
+  # gates at 0.5 against progress at 6.0 is 1:12, where SafeDrive runs DAC to
+  # progress at 48:1. The reasoning behind the low gates was that the label
+  # already multiplies by them, so a failed gate is a zero -- but the ranking is
+  # not the label. It orders candidates by the heads' sigmoids, and weak gates
+  # there pick the proposal that travels furthest while being unsafe.
+  #
+  # Kept below SafeDrive's absolute magnitudes because our score has three gates
+  # rather than two and each is a full log term; the ratio is what was wrong.
+  pdm_imi_rank_weight: 0.3
+  pdm_score_log:
+    no_at_fault_collisions: 8.0
+    drivable_area_compliance: 8.0
+    gt_compliance: 8.0
+  pdm_score_sum:
+    ego_progress: 1.0
+  pdm_score_sum_scale: 1.0
+
+  # NC is 0/1 here, not 0/0.5/1 -- AlpaSim's at-fault rule has no half state --
+  # and gt_compliance is 0/1 by construction. Nothing needs collapsing.
+  pdm_three_class_terms: []
+
+  # SafeDrive predicts the aggregate as its own head alongside the components
+  # (`pdm_score_loss_weight`), rather than resting the whole ranking on
+  # hand-set log coefficients.  The label already carries the column, so this
+  # costs one head and lets the model learn the composition.  It enters the
+  # ranking as a sigmoid bonus, not a log factor: it is a score, not a gate.
+  pdm_aggregate_head: true
+  pdm_aggregate_loss_weight: 1.0
+  pdm_aggregate_rank_weight: 1.0

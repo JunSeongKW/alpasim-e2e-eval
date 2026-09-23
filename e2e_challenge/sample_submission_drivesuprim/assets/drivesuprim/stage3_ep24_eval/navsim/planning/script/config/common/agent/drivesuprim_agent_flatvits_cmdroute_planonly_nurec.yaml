@@ -1,0 +1,33 @@
+# Flat stitched ViT-S, planning-only, reading BOTH intent signals.
+#
+# The base variant zeroes the four driving-command slots because the route
+# replaced the command -- and those columns of `_status_encoding` then never
+# receive a gradient (measured on the 30-epoch run: they move 0.0038 against
+# 0.0132 for the velocity columns, and shrink, which is weight decay rather
+# than learning).  Here they carry a real command again, so the model gets
+#
+#   command   one coarse per-frame intent on the ego-status vector, the same
+#             four-way signal every earlier DriveSuprim checkpoint steered off
+#   route     20 waypoint tokens in the decoder memory, which each of the 4,096
+#             candidates attends to on its own terms
+#
+# The command is DERIVED FROM THE ROUTE (`derive_command_from_route`), not taken
+# from the log: NuRec's logged command reads straight on 85% of frames against
+# NAVSIM's 62%, so it under-signals every manoeuvre, while the route reproduces
+# NAVSIM's proportions.  It falls back to the logged value where a frame has no
+# route.
+#
+# Nothing changes shape -- the four slots already exist and were being zeroed --
+# so this is a data change, not an architecture change, and a checkpoint from
+# the base variant still loads.
+
+defaults:
+  - drivesuprim_agent_flatvits_planonly_nurec
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_flatvits_cmdroute_planonly_nurec_ckpt
+
+  use_route: true
+  use_command_with_route: true
+  derive_command_from_route: true

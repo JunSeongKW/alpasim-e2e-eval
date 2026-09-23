@@ -407,8 +407,45 @@ class DriverResponseAtTime:
     safety_monitor_safe: bool | None = None
     # Command name from driver debug info (e.g. "LEFT", "RIGHT", "STRAIGHT").
     command_name: str | None = None
+    # Current ego state from trusted driver debug info, in the rig frame.
+    speed_mps: float | None = None
+    acceleration_longitudinal_mps2: float | None = None
+    acceleration_lateral_mps2: float | None = None
     # Optional reasoning text from driver debug info.
     reasoning_text: str | None = None
+    # DriveSuprim ego-frame candidate/perception diagnostics.
+    drivesuprim_candidate_vocab: np.ndarray | None = None  # [V,T,3]
+    drivesuprim_feasibility_mask: np.ndarray | None = None  # [V]
+    # Which rule rejected each candidate (True = passed that rule). Present only
+    # when the model exports them; the combined mask above is their AND.
+    drivesuprim_drivable_mask: np.ndarray | None = None  # [V]
+    drivesuprim_collision_mask: np.ndarray | None = None  # [V]
+    drivesuprim_selected_index: int | None = None
+    drivesuprim_coarse_path: np.ndarray | None = None  # [T,3]
+    drivesuprim_coarse_candidates: np.ndarray | None = None  # [K,T,3]
+    drivesuprim_final_path: np.ndarray | None = None  # [T,3]
+    drivesuprim_point_cloud_range: tuple[float, ...] | None = None
+    drivesuprim_drivable_probability: np.ndarray | None = None  # [H,W], uint8
+    drivesuprim_detected_agents: np.ndarray | None = None  # [N,7]
+    drivesuprim_detection_classes: tuple[str, ...] = ()
+    # Ranking-score decomposition over the refinement candidates.
+    drivesuprim_rank_terms: dict[str, np.ndarray] | None = None  # name -> [K]
+    drivesuprim_rank_total: np.ndarray | None = None  # [K]
+    drivesuprim_rank_selected: int | None = None
+    drivesuprim_rank_stats: dict[str, dict[str, float]] | None = None
+    # Route-corridor gate, applied in the driver's adapter rather than by the
+    # network. The cached route is the part of the route the driver has
+    # remembered from earlier steps, in the ego frame of this one.
+    drivesuprim_cached_route: np.ndarray | None = None  # [M,2]
+    drivesuprim_route_mask: np.ndarray | None = None  # [K] True = inside
+    drivesuprim_route_rejected_paths: np.ndarray | None = None  # [R,T,2]
+    drivesuprim_route_gate_poses: int | None = None
+    drivesuprim_route_reselected: bool = False
+    # Route reranker (mean L2 against the route message): the far route the
+    # driver was given this step, and the selection record -- both winners'
+    # trajectories, their scores and mean distances, and whether it changed.
+    drivesuprim_route_message: np.ndarray | None = None  # [M,2]
+    drivesuprim_route_rerank: dict | None = None
 
     @staticmethod
     def _extract_debug_extra(
@@ -527,7 +564,33 @@ class DriverResponseAtTime:
         """
         safety_monitor_safe = None
         command_name = None
+        speed_mps = None
+        acceleration_longitudinal_mps2 = None
+        acceleration_lateral_mps2 = None
         reasoning_text = None
+        drivesuprim_candidate_vocab = None
+        drivesuprim_feasibility_mask = None
+        drivesuprim_drivable_mask = None
+        drivesuprim_collision_mask = None
+        drivesuprim_selected_index = None
+        drivesuprim_coarse_path = None
+        drivesuprim_coarse_candidates = None
+        drivesuprim_final_path = None
+        drivesuprim_point_cloud_range = None
+        drivesuprim_drivable_probability = None
+        drivesuprim_detected_agents = None
+        drivesuprim_detection_classes = ()
+        drivesuprim_rank_terms = None
+        drivesuprim_rank_total = None
+        drivesuprim_rank_selected = None
+        drivesuprim_rank_stats = None
+        drivesuprim_cached_route = None
+        drivesuprim_route_message = None
+        drivesuprim_route_rerank = None
+        drivesuprim_route_mask = None
+        drivesuprim_route_rejected_paths = None
+        drivesuprim_route_gate_poses = None
+        drivesuprim_route_reselected = False
         extra = DriverResponseAtTime._extract_debug_extra(
             driver_response,
             parse_unstructured_debug_info=parse_unstructured_debug_info,
@@ -537,8 +600,141 @@ class DriverResponseAtTime:
                 safety_monitor_safe = extra["safe_trajectory"]
             if "command_name" in extra:
                 command_name = extra["command_name"]
+            if extra.get("speed_mps") is not None:
+                speed_mps = float(extra["speed_mps"])
+            if extra.get("acceleration_longitudinal_mps2") is not None:
+                acceleration_longitudinal_mps2 = float(
+                    extra["acceleration_longitudinal_mps2"]
+                )
+            if extra.get("acceleration_lateral_mps2") is not None:
+                acceleration_lateral_mps2 = float(
+                    extra["acceleration_lateral_mps2"]
+                )
             if "reasoning_text" in extra:
                 reasoning_text = extra["reasoning_text"]
+            ds_debug = extra.get("drivesuprim_debug")
+            if isinstance(ds_debug, dict) and ds_debug.get("version") == 1:
+                candidate_count = int(ds_debug.get("candidate_count", 0))
+                vocab = ds_debug.get("candidate_vocab")
+                if vocab is not None:
+                    vocab = np.asarray(vocab, dtype=np.float32)
+                    if (
+                        vocab.ndim == 3
+                        and vocab.shape[0] == candidate_count
+                        and vocab.shape[2] >= 2
+                    ):
+                        drivesuprim_candidate_vocab = vocab[:, :, :3]
+                    else:
+                        logger.warning(
+                            "Ignoring invalid DriveSuprim candidate vocabulary shape %s",
+                            vocab.shape,
+                        )
+                def _unpack(key):
+                    raw = ds_debug.get(key)
+                    if raw is None or candidate_count <= 0:
+                        return None
+                    return np.unpackbits(
+                        np.asarray(raw, dtype=np.uint8), bitorder="little"
+                    )[:candidate_count].astype(np.bool_)
+
+                drivesuprim_feasibility_mask = _unpack("feasibility_mask_packed")
+                drivesuprim_drivable_mask = _unpack("feasibility_drivable_packed")
+                drivesuprim_collision_mask = _unpack("feasibility_collision_packed")
+                selected_index = ds_debug.get("selected_index")
+                if isinstance(selected_index, (int, np.integer)):
+                    drivesuprim_selected_index = int(selected_index)
+                coarse = ds_debug.get("coarse_path")
+                if coarse is not None:
+                    coarse = np.asarray(coarse, dtype=np.float32)
+                    if coarse.ndim == 2 and coarse.shape[1] >= 2:
+                        drivesuprim_coarse_path = coarse[:, :3]
+                coarse_candidates = ds_debug.get("coarse_candidates")
+                if coarse_candidates is not None:
+                    coarse_candidates = np.asarray(
+                        coarse_candidates, dtype=np.float32
+                    )
+                    if (
+                        coarse_candidates.ndim == 3
+                        and coarse_candidates.shape[2] >= 2
+                    ):
+                        drivesuprim_coarse_candidates = coarse_candidates[:, :, :3]
+                final = ds_debug.get("final_path")
+                if final is not None:
+                    final = np.asarray(final, dtype=np.float32)
+                    if final.ndim == 2 and final.shape[1] >= 2:
+                        drivesuprim_final_path = final[:, :3]
+                pc_range = ds_debug.get("point_cloud_range")
+                if pc_range is not None and len(pc_range) == 6:
+                    drivesuprim_point_cloud_range = tuple(float(v) for v in pc_range)
+                drivable = ds_debug.get("drivable_probability")
+                if drivable is not None:
+                    drivable = np.asarray(drivable, dtype=np.uint8)
+                    if drivable.ndim == 2:
+                        drivesuprim_drivable_probability = drivable
+                agents = ds_debug.get("detected_agents")
+                if agents is not None:
+                    agents = np.asarray(agents, dtype=np.float32)
+                    if agents.ndim == 2 and agents.shape[1] == 7:
+                        drivesuprim_detected_agents = agents
+                classes = ds_debug.get("detection_classes")
+                if isinstance(classes, (tuple, list)):
+                    drivesuprim_detection_classes = tuple(str(name) for name in classes)
+                rank_terms = ds_debug.get("rank_terms")
+                if isinstance(rank_terms, dict) and rank_terms:
+                    parsed_terms = {
+                        str(name): np.asarray(value, dtype=np.float32).reshape(-1)
+                        for name, value in rank_terms.items()
+                        if value is not None
+                    }
+                    if parsed_terms:
+                        drivesuprim_rank_terms = parsed_terms
+                rank_total = ds_debug.get("rank_total")
+                if rank_total is not None:
+                    drivesuprim_rank_total = np.asarray(
+                        rank_total, dtype=np.float32
+                    ).reshape(-1)
+                rank_selected = ds_debug.get("rank_selected")
+                if rank_selected is not None:
+                    drivesuprim_rank_selected = int(rank_selected)
+                rank_stats = ds_debug.get("rank_stats")
+                if isinstance(rank_stats, dict) and rank_stats:
+                    drivesuprim_rank_stats = rank_stats
+                route_message = ds_debug.get("route_message")
+                if route_message is not None:
+                    route_message = np.asarray(route_message, dtype=np.float32)
+                    if route_message.ndim == 2 and route_message.shape[1] >= 2:
+                        route_message = route_message[:, :2]
+                        drivesuprim_route_message = route_message[
+                            np.isfinite(route_message).all(axis=1)
+                        ]
+                route_rerank = ds_debug.get("route_rerank")
+                if isinstance(route_rerank, dict):
+                    drivesuprim_route_rerank = {
+                        key: (np.asarray(value, dtype=np.float32)
+                              if isinstance(value, np.ndarray) else value)
+                        for key, value in route_rerank.items()
+                    }
+                cached_route = ds_debug.get("cached_route")
+                if cached_route is not None:
+                    cached_route = np.asarray(cached_route, dtype=np.float32)
+                    if cached_route.ndim == 2 and cached_route.shape[1] >= 2:
+                        drivesuprim_cached_route = cached_route[:, :2]
+                route_mask = ds_debug.get("route_mask")
+                if route_mask is not None:
+                    drivesuprim_route_mask = np.asarray(
+                        route_mask, dtype=bool
+                    ).reshape(-1)
+                rejected_paths = ds_debug.get("route_rejected_paths")
+                if rejected_paths is not None:
+                    rejected_paths = np.asarray(rejected_paths, dtype=np.float32)
+                    if rejected_paths.ndim == 3 and rejected_paths.shape[-1] >= 2:
+                        drivesuprim_route_rejected_paths = rejected_paths[..., :2]
+                gate_poses = ds_debug.get("route_gate_poses")
+                if isinstance(gate_poses, (int, np.integer)) and gate_poses > 0:
+                    drivesuprim_route_gate_poses = int(gate_poses)
+                drivesuprim_route_reselected = bool(
+                    ds_debug.get("route_reselected", False)
+                )
 
         # Selected trajectory
         selected_traj = RenderableTrajectory.from_grpc_with_aabb(
@@ -572,7 +768,33 @@ class DriverResponseAtTime:
             sampled_trajectories=sampled_trajs,
             safety_monitor_safe=safety_monitor_safe,
             command_name=command_name,
+            speed_mps=speed_mps,
+            acceleration_longitudinal_mps2=acceleration_longitudinal_mps2,
+            acceleration_lateral_mps2=acceleration_lateral_mps2,
             reasoning_text=reasoning_text,
+            drivesuprim_candidate_vocab=drivesuprim_candidate_vocab,
+            drivesuprim_feasibility_mask=drivesuprim_feasibility_mask,
+            drivesuprim_drivable_mask=drivesuprim_drivable_mask,
+            drivesuprim_collision_mask=drivesuprim_collision_mask,
+            drivesuprim_selected_index=drivesuprim_selected_index,
+            drivesuprim_coarse_path=drivesuprim_coarse_path,
+            drivesuprim_coarse_candidates=drivesuprim_coarse_candidates,
+            drivesuprim_final_path=drivesuprim_final_path,
+            drivesuprim_point_cloud_range=drivesuprim_point_cloud_range,
+            drivesuprim_drivable_probability=drivesuprim_drivable_probability,
+            drivesuprim_detected_agents=drivesuprim_detected_agents,
+            drivesuprim_detection_classes=drivesuprim_detection_classes,
+            drivesuprim_rank_terms=drivesuprim_rank_terms,
+            drivesuprim_rank_total=drivesuprim_rank_total,
+            drivesuprim_rank_selected=drivesuprim_rank_selected,
+            drivesuprim_rank_stats=drivesuprim_rank_stats,
+            drivesuprim_cached_route=drivesuprim_cached_route,
+            drivesuprim_route_message=drivesuprim_route_message,
+            drivesuprim_route_rerank=drivesuprim_route_rerank,
+            drivesuprim_route_mask=drivesuprim_route_mask,
+            drivesuprim_route_rejected_paths=drivesuprim_route_rejected_paths,
+            drivesuprim_route_gate_poses=drivesuprim_route_gate_poses,
+            drivesuprim_route_reselected=drivesuprim_route_reselected,
         )
 
 
@@ -608,6 +830,7 @@ class DriverResponses:
     # Disabled by default because unstructured debug info is pickle-encoded
     # driver-controlled data. Trusted callers can opt in explicitly.
     parse_unstructured_debug_info: bool = False
+    drivesuprim_candidate_vocab: np.ndarray | None = None
     artists: dict[str, list[plt.Artist]] | None = None
     camera_artists_by_ax: dict[int, dict[str, list[plt.Artist] | plt.Artist | None]] = (
         dataclasses.field(default_factory=dict)
@@ -620,13 +843,7 @@ class DriverResponses:
         assert (
             len(self.timestamps_us) == 0 or query_time_us > self.timestamps_us[-1]
         ), "Driver responses must be added in chronological order"
-        if len(driver_response.trajectory.poses) == 0:
-            # Empty trajectory happens in first few timesteps
-            return
-        self.timestamps_us.append(now_time_us)
-        self.query_times_us.append(query_time_us)
-        self.per_timestep_driver_responses.append(
-            DriverResponseAtTime.from_drive_response(
+        parsed_response = DriverResponseAtTime.from_drive_response(
                 driver_response,
                 now_time_us,
                 query_time_us,
@@ -634,7 +851,20 @@ class DriverResponses:
                 self.ego_coords_rig_to_aabb_center,
                 parse_unstructured_debug_info=self.parse_unstructured_debug_info,
             )
-        )
+        if parsed_response.drivesuprim_candidate_vocab is not None:
+            self.drivesuprim_candidate_vocab = parsed_response.drivesuprim_candidate_vocab
+        if len(driver_response.trajectory.poses) == 0:
+            # Empty trajectories occur during startup. Still parse/cache the
+            # one-shot DriveSuprim vocabulary carried by their debug payload.
+            return
+        self.timestamps_us.append(now_time_us)
+        self.query_times_us.append(query_time_us)
+        if (
+            parsed_response.drivesuprim_candidate_vocab is None
+            and self.drivesuprim_candidate_vocab is not None
+        ):
+            parsed_response.drivesuprim_candidate_vocab = self.drivesuprim_candidate_vocab
+        self.per_timestep_driver_responses.append(parsed_response)
 
     def render_at_time(
         self,

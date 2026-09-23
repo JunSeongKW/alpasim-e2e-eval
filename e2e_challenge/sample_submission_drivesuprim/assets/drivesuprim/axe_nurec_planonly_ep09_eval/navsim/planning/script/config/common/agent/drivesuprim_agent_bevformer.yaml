@@ -1,0 +1,123 @@
+_target_: navsim.agents.drivesuprim.drivesuprim_agent.DriveSuprimAgent
+_convert_: 'all'
+pdm_split: navtrain
+metrics:
+  - no_at_fault_collisions
+  - drivable_area_compliance
+  - time_to_collision_within_bound
+  - ego_progress
+  - driving_direction_compliance
+  - lane_keeping
+  - traffic_light_compliance
+  - history_comfort
+
+config:
+  _target_: navsim.agents.drivesuprim.drivesuprim_config.DriveSuprimConfig
+  _convert_: 'all'
+  ckpt_path: drivesuprim_bevformer_ckpt
+
+  trajectory_imi_weight: 1.0
+
+  vocab_size: 8192
+  vocab_path: ${oc.env:NAVSIM_DEVKIT_ROOT}/traj_final/test_8192_kmeans.npy
+  normalize_vocab_pos: True
+
+  sigma: 0.5
+  vadv2_head_nlayers: 3
+
+  trajectory_sampling:
+    _target_: nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling
+    _convert_: 'all'
+    time_horizon: 4
+    interval_length: 0.1
+
+  # --- SafeDrive-style BEVFormer-M front-end (camera-only, temporal) ---
+  backbone_type: 'bevformer_m'
+  # The whole BEV front-end (ResNet + FPN + BEV encoder + temporal conv) is
+  # trained from scratch and lives under `_backbone.image_encoder`, so it all
+  # falls into the backbone LR bucket. Nothing is pretrained/frozen -> full LR.
+  # (If you later load an ImageNet ResNet, lower this AND split the optimizer
+  #  grouping so only the ResNet is down-weighted.)
+  lr_mult_backbone: 1.0
+  bevformer_img_backbone: 'resnet34'
+  bevformer_ckpt: ''
+  # Encoder aligned to BEVFormer/UniAD (6 layers, 4 levels); grid 100x100 for 3090 24GB
+  bev_h: 100
+  bev_w: 100
+  bev_embed_dims: 256           # must equal tf_d_model
+  bev_num_encoder_layers: 6     # BEVFormer/UniAD = 6
+  bev_num_feature_levels: 4     # FPN num_outs=4
+  bev_num_points_in_pillar: 4
+  bev_num_cameras: 3            # cam_l0 / cam_f0 / cam_r0
+  bev_img_height: 256
+  bev_img_width: 512
+  bev_seq_len: 3               # current + 2 past frames
+  bev_use_temporal_align: True
+  bev_use_grad_checkpoint: False  # recompute per-frame BEV in backward to cut memory (aug run sets True)
+  point_cloud_range: [-32.0, -32.0, -3.0, 32.0, 32.0, 5.0]
+
+  # BEV token grid drives the trajectory-head positional embedding sizing.
+  # (kept consistent with bev_h x bev_w; camera_* below are unused by this path)
+  n_camera: 3
+  camera_width: 2048
+  camera_height: 512
+  img_vert_anchors: 100    # = bev_h (BEV token grid for the trajectory head PE)
+  img_horz_anchors: 100    # = bev_w
+
+  training: True
+
+  # Augmentation: rotation ensemble is off for the BEV path (see notes); the
+  # teacher/student self-distillation still runs via photometric augmentation.
+  only_ori_input: true
+  ego_perturb:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.EgoPerturbConfig
+    _convert_: 'all'
+    n_student_rotation_ensemble: 3
+    offline_aug_angle_boundary: 30.0
+    offline_aug_file: null
+
+  ori_vocab_pdm_score_full_path: "aaa.pkl"
+  # per-token ori scores (set via train.sh override) — avoids the ~15GB
+  # monolithic pickle being resident in every DDP rank
+  ori_vocab_pdm_score_dir: ""
+  aug_vocab_pdm_score_dir: "ccc"
+
+  # ===== Auxiliary heads: binary drivable-area segmentation + agent detection =====
+  use_aux_heads: false
+  aux_bev_drivable_only: true
+  aux_bev_seg_weight: 1.0
+  aux_agent_class_weight: 1.0
+  aux_agent_box_weight: 0.05
+  aux_agent_head_type: transfuser
+  aux_bevformer_det_layers: 6
+  aux_bevformer_det_with_box_refine: true
+  aux_predict_agents: false
+
+  # Self-distillation
+  soft_label_traj: 'first'
+  soft_label_imi_diff_thresh: 1.0
+  soft_label_score_diff_thresh: 0.15
+  # BEVFormerM contains a ResNet with BatchNorm; its running stats must be
+  # copied into the EMA teacher or the teacher/soft-labels drift (see
+  # ssl_meta_arch.update_teacher). backbone_type 'bevformer_m' is not in the
+  # hard-coded resnet list there, so enable buffer EMA explicitly.
+  update_buffer_in_ema: true
+
+  refinement:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.RefinementConfig
+    use_multi_stage: true
+    num_refinement_stage: 1
+    stage_layers: "3"
+    topks: "256"
+    use_mid_output: true
+    use_separate_stage_heads: true
+    use_imi_learning_in_refinement: true
+
+  inference:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.InferConfig
+    model: teacher
+    use_first_stage_traj_in_infer: false
+    save_pickle: false
+
+checkpoint_path: null
+lr: 1e-4

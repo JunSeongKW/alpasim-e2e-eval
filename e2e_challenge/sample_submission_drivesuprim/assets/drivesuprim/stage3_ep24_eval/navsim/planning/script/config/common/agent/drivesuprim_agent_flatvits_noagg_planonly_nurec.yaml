@@ -1,0 +1,33 @@
+# Flat stitched ViT-S, planning-only, without the aggregate head.
+#
+# `pdm_aggregate_head` predicts the product NC x DAC x EP as its own output,
+# supervised at weight 1.0 -- but `pdm_aggregate_rank_weight` is 0.0, so it
+# never enters the ranking that picks a trajectory. It is trained and then
+# ignored. Measured on ep5 (60 frames, two clips), swapping it into the ranking
+# in every combination changed the pick by at most 0.01 m, so nothing is being
+# left on the table by dropping it.
+#
+# Removing it frees the capacity its head and its loss term were consuming: one
+# Linear(256, 1024) + Linear(1024, 1) per stage, and one of the four loss terms
+# the trunk is asked to satisfy.
+#
+# Driving command stays OFF (the default): adding it measured -0.0067 on full
+# val, t = -5.03, the worst of the four ablations run so far.
+#
+# Everything else matches the nodistill run that scored 0.9589 -- flat ViT-S,
+# Fourier route encoding at 6 bands, batch 16, grad clip 35, val 0.1.
+
+defaults:
+  - drivesuprim_agent_flatvits_planonly_nurec
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_flatvits_noagg_planonly_nurec_ckpt
+
+  pdm_aggregate_head: false
+  # Never read once the head is gone, but left at zero so a stray read cannot
+  # revive a term whose tensor no longer exists.
+  pdm_aggregate_loss_weight: 0.0
+  pdm_aggregate_rank_weight: 0.0
+
+  use_command_with_route: false

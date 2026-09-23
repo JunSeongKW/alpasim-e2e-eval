@@ -1,0 +1,14 @@
+# stage3_epzero_ep29 in the ep30 image, with only the weights swapped.
+#
+# The two checkpoints carry identical architectures -- 1,344 tensors, same keys,
+# same shapes, both at epoch 29 / step 21,780 -- so the ep30 image already has
+# the right config, vocabulary and ego-footprint environment. Rebuilding from
+# the original base would risk drifting on one of those; replacing the one file
+# keeps everything else provably the same image.
+FROM alpasim-e2e-drivesuprim-stage3:ep30
+COPY stage3_epzero_ep29.ckpt /app/assets/drivesuprim/axe_nurec_vits.ckpt
+
+# start_drivers.sh checks this label, not the file, so a swap that updates only
+# the weights leaves the guard asserting ep30's hash over ep29's weights -- the
+# exact mislabelling that guard exists to catch, pointed the wrong way.
+LABEL org.alpasim.checkpoint.sha256=07ab5a40027c9b0960765bd2fc9a6297190fd41038c652ebc031c8e52aaa94b4

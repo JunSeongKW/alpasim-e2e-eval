@@ -1,0 +1,233 @@
+_target_: navsim.agents.drivesuprim.drivesuprim_agent.DriveSuprimAgent
+_convert_: 'all'
+pdm_split: navtrain
+metrics:
+  - no_at_fault_collisions
+  - drivable_area_compliance
+  - time_to_collision_within_bound
+  - ego_progress
+  - driving_direction_compliance
+  - lane_keeping
+  - traffic_light_compliance
+  - history_comfort
+
+config:
+  _target_: navsim.agents.drivesuprim.drivesuprim_config.DriveSuprimConfig
+  _convert_: 'all'
+  ckpt_path: drivesuprim_bevformer_vitl_da_ckpt
+
+  trajectory_imi_weight: 1.0
+
+  vocab_size: 8192
+  vocab_path: ${oc.env:NAVSIM_DEVKIT_ROOT}/traj_final/test_8192_kmeans.npy
+  normalize_vocab_pos: True
+
+  sigma: 0.5
+  vadv2_head_nlayers: 3
+
+  trajectory_sampling:
+    _target_: nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling
+    _convert_: 'all'
+    time_horizon: 4
+    interval_length: 0.1
+
+  # ===== Original-size BEVFormer + DriveSuprim ViT-L front-end (A100/H100) =====
+  backbone_type: 'bevformer_m'
+  # --- per-view image backbone: DriveSuprim ViT-L (patch16) via ViTDet pyramid ---
+  bevformer_img_backbone_type: 'vit'
+  # DriveSuprim's own ViT-L (DinoVisionTransformer, patch16, no register tokens)
+  # initialised from da_vitl16.pth -- the same backbone the paper's ViT-L agent
+  # uses. patch16 divides 256x512 exactly, so the input no longer has to be
+  # squeezed to 252x504 the way the patch14 DINOv2 model required.
+  bevformer_vit_impl: 'dinov2'
+  bevformer_vit_name: ''              # unused on the dinov2 path
+  bevformer_vit_pretrained: false     # weights come from bevformer_vit_ckpt
+  bevformer_vit_ckpt: ${oc.env:NAVSIM_EXP_ROOT}/models/da_vitl16.pth
+  # UNFROZEN, unlike the patch14 config: SafeDrive trains the perception
+  # front-end rather than freezing it. Costs memory and step time -- keep
+  # bev_use_grad_checkpoint on, and expect to lower the batch size.
+  bevformer_vit_freeze: false
+  # The BEV front-end (pyramid + BEV encoder + temporal fusion) trains from
+  # scratch at full LR; the pretrained ViT-L gets 0.1x so fine-tuning does not
+  # destroy it. Requires the split optimizer group in drivesuprim_agent.py.
+  lr_mult_backbone: 1.0
+  lr_mult_img_backbone: 0.1
+
+  # --- ORIGINAL BEVFormer grid size (200x200) ---
+  # 160 (x) x 160 (y) -> 0.40 m SQUARE cells over the 64 x 64 m extent.
+  # Square matters: a deformable sampling offset is predicted in normalised
+  # coordinates, so anisotropic cells make the same offset mean different
+  # physical distances along x and y. 25600 queries.
+  bev_h: 160     # y axis (64 m)
+  bev_w: 160     # x axis (64 m)
+  # Pool the first-stage trajectory keyval to 50x50 (2500 tokens) so the
+  # 8192-vocab cross-attention stays cheap; detection/seg/refinement keep the
+  # full 160x160 BEV map. Without this, 8192x40000 attention dominates memory.
+  bev_keyval_grid: 50
+  bev_embed_dims: 256           # must equal tf_d_model
+  bev_num_encoder_layers: 6     # BEVFormer/UniAD = 6
+  bev_num_feature_levels: 4     # ViTDet simple pyramid -> 4 levels
+  bev_num_points_in_pillar: 4
+  # 3 cameras (cam_l0/f0/r0), as SafeDrive specifies. Measured coverage of the
+  # BEV grid below: 91.6% at x 0..16 m and 100% beyond 16 m, so the forward
+  # field this grid covers is fully observed. The two extra side views of a
+  # 5-camera rig only buy rear/near-lateral coverage, which this range no
+  # longer includes, at 5/3 the per-view backbone cost.
+  bev_num_cameras: 3
+  # patch16: 256x512 (16x32 patches) -- SafeDrive's stated NAVSIM resolution
+  bev_img_height: 256
+  bev_img_width: 512
+  bev_seq_len: 3               # current + 2 past frames
+  bev_use_temporal_align: True
+  # OFF. Computing the past frames' BEV without gradients (as BEVFormer's
+  # forward_train does, where obtain_history_bev runs under no_grad + eval and
+  # only img[:, -1] reaches extract_feat with a graph) is implemented and can be
+  # switched on, but it is not worth it here:
+  #
+  #   * The speedup is unconfirmed. Two runs of the identical configuration gave
+  #     1:43 and 5:31 for 25 steps at batch 8 against a 6:53 baseline. Only the
+  #     ~20% figure reproduced. GPU utilisation stayed above 96% throughout, so
+  #     the dataloader is not the explanation.
+  #   * It means something different here than it does in BEVFormer. There the
+  #     encoder runs ONCE, on the current frame, and history enters as a detached
+  #     prev_bev through TemporalSelfAttention -- so the encoder still learns how
+  #     to use the past. This front-end has no prev_bev and no temporal
+  #     attention: it runs the encoder once per frame and fuses afterwards with
+  #     concat+conv. Detaching the history leaves the temporal reasoning to two
+  #     3x3 convs with inputs that never adapt.
+  #
+  # What SafeDrive does here is unknown -- neither its code nor its paper is
+  # available, and its fusion being concat+conv says nothing about its gradient
+  # policy. BEVFormer's forward_train is the only verified reference.
+  bev_history_no_grad: False
+  # 160x160 grid + ViT-L: gradient checkpointing is REQUIRED to fit even 40-80GB.
+  bev_use_grad_checkpoint: True
+  # x in [0, +64] -- FORWARD ONLY. Forward reach covers every one of the 8192
+  # vocab trajectories (max 58.9 m; only 2 of 8192 dip below x = -1 m).
+  # The rear is dropped because the 3-camera rig cannot see it. Measured
+  # ground coverage behind the ego, by lateral offset:
+  #   x -8..0 m, |y| < 4 m (the ego's own lane) :  1.7%
+  #   x -8..0 m, |y| 4..8 m                     : 19.9%
+  #   x -8..0 m, |y| 8..32 m (the flanks)       : 45-50%
+  #   x -16..-8 m                               :  6.0% of GT boxes visible
+  # Keeping x down to -8 m would retain 3.6% more VISIBLE ground-truth boxes
+  # while adding 3200 queries of which ~60% see nothing at all, and it would
+  # still ask the segmentation head to label the ego's own blind spot.
+  # Add cam_b0 / the l1+r1 side views before extending the range backwards.
+  #
+  # z is [-3, +5], NOT the [-5, +3] that BEVFormer and EAD use. That is not a
+  # divergence, it is the same range expressed in this dataset's frame: nuScenes
+  # measures z from LIDAR_TOP (~1.8 m above ground), NAVSIM measures it from the
+  # ground, so copying the literal numbers shifts the box ~1.8 m downwards.
+  # Measured over navtest (721 sampled frames, 24969 GT boxes inside the BEV):
+  #   centre z spans -2.09 .. 4.80, median 0.50
+  #   [-3, +5] -> 0.000% of centres outside, 0.20 m headroom
+  #   [-5, +3] -> 0.184% clipped, top cut by 1.80 m, and the bottom 2.91 m is
+  #               empty -- which also wastes one of the four pillar sample
+  #               anchors on z = -4.5 m, i.e. 4.5 m underground.
+  point_cloud_range: [0.0, -32.0, -3.0, 64.0, 32.0, 5.0]
+
+  # BEV token grid drives the trajectory-head positional embedding sizing.
+  n_camera: 3
+  camera_width: 2048
+  camera_height: 512
+  # UNUSED on the BEV path: bev_keyval_grid>0 pools the trajectory keyval to
+  # 50x50, so these only size the keyval embedding for non-BEV backbones.
+  img_vert_anchors: 160
+  img_horz_anchors: 160
+
+  training: True
+
+  # Augmentation: rotation ensemble off by default here (heavy w/ ViT-L @200x200);
+  # teacher/student self-distillation still runs via photometric augmentation.
+  only_ori_input: true
+  ego_perturb:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.EgoPerturbConfig
+    _convert_: 'all'
+    n_student_rotation_ensemble: 3
+    offline_aug_angle_boundary: 30.0
+    offline_aug_file: null
+
+  ori_vocab_pdm_score_full_path: "aaa.pkl"
+  ori_vocab_pdm_score_dir: ""
+  aug_vocab_pdm_score_dir: "ccc"
+
+  # ===== Auxiliary heads ON: detection + drivable-area BEV segmentation =====
+  # (motion prediction OFF by default -> current-frame detection; enable via
+  #  aux_predict_agents=true if you want the 4s forecasting head too)
+  use_aux_heads: true
+  # DRIVABLE-AREA SEGMENTATION ONLY. The multi-class static semantic head
+  # (road / walkways / centerline) is disabled: detection already owns every
+  # object, and what the planner needs from segmentation is the geometric
+  # drivable mask. With drivable_only the head emits 2 channels and
+  # `bev_seg_map` carries the binary mask.
+  aux_bev_drivable_only: true
+  aux_bev_dual_seg: false
+  aux_seg_convnext_blocks: 2
+  # cls : box = 8 : 1, as BEVFormer and UniAD both use (FocalLoss 2.0 / L1 0.25).
+  # UniAD is the closest reference: BEVFormer backbone, 6 decoder layers, same
+  # weights across both of its stages. The 14 : 14 : 5 : 2 table quoted here
+  # before is EAD's, not SafeDrive's, and its 5 : 2 det ratio comes from a
+  # 4-layer head.
+  #
+  # seg 6.75 keeps EAD's detection : drivable-segmentation balance of 2 : 1.
+  # Both sides sum every decoder layer at full weight, so:
+  #   EAD  : 4 layers x (5.0 + 2.0)  = 28   vs drivable 14   -> 2 : 1
+  #   ours : 6 layers x (2.0 + 0.25) = 13.5 vs seg 6.75      -> 2 : 1
+  # Rescale seg whenever aux_bevformer_det_layers or the det weights change.
+  # NOTE box L1 is in metres here, so check the raw magnitudes on the first
+  # training steps before trusting this.
+  aux_bev_seg_weight: 6.75     # applies to the drivable head (only head left)
+  # EAD weights its BEV segmentation classes by inverse frequency, normalised
+  # so the vector sums to the class count. Measured on THIS grid (160x160 over
+  # x 0..64 m, 388 navtest frames, 9.9M cells): 59.68% background /
+  # 40.32% drivable. Re-measure whenever bev_h/bev_w/point_cloud_range or the
+  # drivable layers change -- the class balance moves with the footprint.
+  aux_bev_seg_class_weights: [0.8064, 1.1936]
+  aux_agent_class_weight: 2.0
+  aux_agent_box_weight: 0.25
+  # "transfuser" = current lightweight aux detector.
+  # "bevformer" = BEVFormer-style full-BEV query decoder detector.
+  aux_agent_head_type: bevformer
+  # 600 queries, matching EAD_navsim's detection head. GT slots stay separate and
+  # small: the Hungarian cost matrix is queries x gt_slots, and padding the GT
+  # side buys nothing (navtest has at most ~90 boxes inside the BEV).
+  aux_bevformer_det_num_queries: 600
+  num_bounding_boxes: 100
+  # EAD_navsim's det_class_names. Dropping bicycle / barrier / czone_sign costs
+  # ~1.5 boxes per frame out of ~68 -- they are too rare to learn from
+  # (measured per frame: bicycle 0.2, barrier 1.2, czone_sign 0.1).
+  aux_agent_classes: ['vehicle', 'pedestrian', 'traffic_cone', 'generic_object']
+  # 3D boxes, BEVFormer code_size=10:
+  #   [cx, cy, log(l), log(w), cz, log(h), sin(rot), cos(rot), vx, vy]
+  # NAVSIM GT provides all of it (boxes are N x 7 incl. z/height, plus
+  # velocity_3d), so the previous 5-dim BEV box was discarding real labels.
+  aux_agent_box_3d: true
+  aux_bevformer_det_layers: 6
+  aux_bevformer_det_with_box_refine: true
+  aux_predict_agents: false
+
+  # Self-distillation
+  soft_label_traj: 'first'
+  soft_label_imi_diff_thresh: 1.0
+  soft_label_score_diff_thresh: 0.15
+  update_buffer_in_ema: true
+
+  refinement:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.RefinementConfig
+    use_multi_stage: true
+    num_refinement_stage: 1
+    stage_layers: "3"
+    topks: "256"
+    use_mid_output: true
+    use_separate_stage_heads: true
+    use_imi_learning_in_refinement: true
+
+  inference:
+    _target_: navsim.agents.drivesuprim.drivesuprim_config.InferConfig
+    model: teacher
+    use_first_stage_traj_in_infer: false
+    save_pickle: false
+
+checkpoint_path: null
+lr: 1e-4

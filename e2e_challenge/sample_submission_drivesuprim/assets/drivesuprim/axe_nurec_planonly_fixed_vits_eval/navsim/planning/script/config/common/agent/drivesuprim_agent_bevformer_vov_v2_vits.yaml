@@ -1,0 +1,121 @@
+# v2 with the image backbone swapped to a DINOv3 ViT-Small/patch16, ported
+# from EADv1.1's actual deployed ViT-S setup
+# (EAD_navsim/navsim/agents/ead_simplebev_world/ead_backbone_simplebev.py --
+# SimpleBEVDinoBackbone / SimpleBEVViTFeaturePyramid / LearnedRGBResize2, and
+# its eadv1.1_navsim_c_phase1.yaml: simplebev_vit_model
+# "vit_small_patch16_dinov3", simplebev_vit_pretrained True, opt_paramwise_cfg
+# image_encoder lr_mult 1.0).
+#
+# Replaces V2-99 (VoVNetV2-99, dd3d-pretrained) / ConvNeXt V2-Tiny / ResNet-50
+# with a single-scale ViT turned into a 3-level pyramid instead of a genuine
+# multi-scale CNN + FPN. Consequences beyond the name:
+#
+#  - out strides 8/16/32 come from ViTSFeaturePyramid's ms_up=1/ms_down=1
+#    (up/native/down conv synthesis of EAD's design, re-tuned from EAD's own
+#    4-level ms_up=1/ms_down=2 to match FPN num_outs=3 here), NOT from timm
+#    feature-extraction stages -- a ViT has no intermediate stages at all, one
+#    scale in, three synthesised out. See vits_dinov3_backbone.py.
+#  - EAD's learned /2 RGB resize stem is left OFF (bevformer_vits_learned_resize2:
+#    false, the dataclass default): it exists in EAD to make a patch16 ViT
+#    affordable at their 1920x1080 input; DriveSuprim's 512x256 already divides
+#    patch16 exactly (32x16 = 512 tokens/camera), so there is nothing to buy
+#    back by halving it first.
+#  - normalisation must be ImageNet: DINOv3 was trained under it, matching the
+#    same 'imagenet' convention v2_cnx/v2_r50 already use -- and it is applied
+#    ONCE, upstream in BEVFormerM.extract_img_feat, not inside the ViT module
+#    (see vits_dinov3_backbone.py's docstring on why it does not normalise
+#    again).
+#  - channels become 384/384/384 (DINOv3 ViT-S embed_dim, same at every
+#    synthesised level -- V2-99 gave 512/768/1024, ConvNeXt V2-T 192/384/768,
+#    ResNet-50 512/1024/2048).
+#  - backbone LR multiplier stays 1.0x (lr_mult_backbone default, untouched
+#    below), matching EAD's opt_paramwise_cfg.image_encoder.lr_mult=1.0 --
+#    i.e. no backbone LR throttling, same treatment v2_cnx/v2_r50 already get.
+#
+# The backbone changes, so this cannot load any existing checkpoint. Stage 1
+# from scratch, and re-measure det/mAP and seg/iou before trusting the speed.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2
+  - _self_
+
+config:
+  bevformer_img_backbone_type: vits
+  bevformer_vit_name: vit_small_patch16_dinov3
+  bevformer_vit_pretrained: true       # timm pulls the HF-hub weights (network, once) -- EAD's own recipe, no local ckpt
+  bevformer_vit_ckpt: ''
+  bevformer_vit_freeze: false
+  bevformer_vits_ms_up: 1
+  bevformer_vits_ms_down: 1            # ms_up=1,ms_down=1 -> 3 levels @ strides 8/16/32 (FPN num_outs=3 below)
+  bevformer_vits_learned_resize2: false
+  bevformer_vits_amp: true
+  bevformer_vits_flash_dtype: bf16
+  bevformer_img_norm: imagenet
+
+  # All seven annotated classes, not the four the base config keeps. Share of
+  # boxes inside the BEV range, full-split scan (navtrain 47950 / navtest 5044):
+  #   generic_object 42.82 / 33.85 %      traffic_cone 5.52 / 8.84 %
+  #   vehicle        25.76 / 32.15 %      barrier      1.18 / 2.64 %
+  #   pedestrian     24.27 / 21.87 %      bicycle      0.24 / 0.40 %
+  #                                       czone_sign   0.20 / 0.25 %
+  # The three that were dropped are rare in training but barrier is 2.2x more
+  # common in navtest than navtrain, so it costs more at evaluation than the
+  # training share implies -- and it matters most for the gate: segmentation
+  # only supervises drivable area, so an unlisted barrier is invisible to BOTH
+  # heads and the gate drives through it as free space.
+  aux_agent_classes: ['vehicle', 'pedestrian', 'bicycle', 'traffic_cone',
+                      'barrier', 'czone_sign', 'generic_object']
+  # Gate box scale per class. All seven are listed so nothing falls through to
+  # feasibility_collision_scale by accident.
+  #
+  # Only the vulnerable road users are widened. PDM zeroes NC outright for
+  # AGENT_TYPES (vehicle, pedestrian, bicycle) but only halves it to 0.5 for the
+  # static types, and pedestrian and bicycle are the two that also move freely
+  # inside the horizon -- measured on navtrain, pedestrian 1.06 m/s median,
+  # bicycle 1.6 m/s median / 10.6 m/s at p95. Full-weight metric plus
+  # unconstrained motion is what earns the 2.0; vehicles are faster still but
+  # large and kinematically constrained, so 1.1 covers them.
+  #
+  # The static classes stay at 1.1: PDM's object manager never propagates them,
+  # so they hold their pose for the whole horizon and a margin covers no motion
+  # uncertainty. Measured medians -- barrier 0.57x2.19 m, czone_sign 0.37x1.28 m,
+  # traffic_cone 0.42x0.43 m -- inflated 2x would block passable candidates for
+  # a metric that only costs 0.5 when hit.
+  feasibility_class_scale:
+    vehicle: 1.1
+    pedestrian: 2.0
+    bicycle: 2.0
+    traffic_cone: 1.1
+    barrier: 1.1
+    czone_sign: 1.1
+    generic_object: 1.1
+  # Inverse-frequency weights for the drivable-area seg loss, measured on the
+  # FULL navtrain split (47950 scenes) over THIS extent -- x 0..56, y +-28,
+  # 56x56, 150.4M cells: 46.76% background / 53.24% drivable -> [1.0648, 0.9352].
+  aux_bev_seg_class_weights: [1.0648, 0.9352]
+
+  bev_num_feature_levels: 3
+
+  # BEV encoder: 56x56 (1.00 m cell) over x 0..56 m, y +-28 m, z -3..5 m;
+  # deformable attention, 3 layers x 3 levels; concat + conv temporal.
+  # Identical to v2_cnx/v2_r50 -- only the image backbone is being ablated
+  # here. See drivesuprim_agent_bevformer_vov_v2_cnx.yaml for the full
+  # measurement notes behind every value in this section.
+  point_cloud_range: [0.0, -28.0, -3.0, 56.0, 28.0, 5.0]
+  bev_pillar_z_range: [-1.0, 2.0]
+  bev_h: 56
+  bev_w: 56
+  bev_num_encoder_layers: 3
+  bev_history_encoder_layers: 1
+
+  # Trajectory vocabulary 8192 -> 4096 (the k-means set that ships in
+  # traj_final/test_4096_kmeans.npy -- an independent clustering, not a subset).
+  vocab_size: 4096
+  vocab_path: ${oc.env:NAVSIM_DEVKIT_ROOT}/traj_final/test_4096_kmeans.npy
+
+  # First-stage trajectory keyval: BEV pooled to 28x28 = 784 tokens (56 / 28 = 2,
+  # an exact ratio -- see v2_cnx.yaml for the measurement behind this).
+  bev_keyval_grid: 28
+
+  # History frames the way BEVFormer actually does it (see v2_cnx.yaml).
+  bev_history_no_grad: true
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_ckpt

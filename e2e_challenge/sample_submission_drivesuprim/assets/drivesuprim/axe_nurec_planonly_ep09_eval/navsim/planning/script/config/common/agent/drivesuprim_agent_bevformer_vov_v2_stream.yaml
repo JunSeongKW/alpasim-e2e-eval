@@ -1,0 +1,12 @@
+# v2 + streaming temporal. Same information as v1/v2 -- the history BEVs are
+# cached rather than dropped -- so unlike v2_noseq this costs no temporal context.
+# Only valid when frames arrive in order; the NAVSIM harness scores scenarios
+# independently and in arbitrary order, so it cannot exercise this path.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2
+  - _self_
+
+config:
+  bev_streaming: true
+  bev_history_encoder_layers: 0   # history is cached, never re-encoded
+  ckpt_path: drivesuprim_bevformer_vov_v2_stream_ckpt

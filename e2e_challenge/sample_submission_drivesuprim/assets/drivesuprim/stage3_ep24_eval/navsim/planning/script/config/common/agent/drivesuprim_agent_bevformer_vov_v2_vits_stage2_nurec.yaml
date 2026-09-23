@@ -1,0 +1,116 @@
+# stage2 of the ViT-S BEVFormer curriculum, trained against the NuRec score.
+#
+# planner with the perception trunk frozen; CKPT=<stage1.ckpt>.
+#
+# Same as drivesuprim_agent_bevformer_vov_v2_vits_stage2
+# except for the score: this one is judged by AlpaSim's scene score rather than
+# EPDMS, so five sub-score heads do not exist and gt_compliance does.  See
+# drivesuprim_agent_bevformer_vov_v2_vits_planonly_scratch_nurec.yaml for the
+# full reasoning; the terms below are identical to it.
+#
+# A checkpoint from the EPDMS agents will not load here -- the head set differs.
+
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits_stage2
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_stage2_nurec_ckpt
+
+  use_traffic_light_compliance: false
+
+  # No self-distillation, matching the `nodistill` baseline.  Measured as a tie
+  # against distillation on (0.9589 vs 0.9586, t=-0.35), so it is dropped for the
+  # teacher forward it costs every step rather than for accuracy.
+  use_soft_teacher: false
+
+  # Three cameras, always. The rectified logs only rectified CAM_F0/L0/R0; the
+  # other five still carry the pre-rectification pinhole (fx 1545, cx 960,
+  # cy 560) in the same log, so bev_num_cameras: 5 would pull cam_l1/cam_r1 in
+  # with a calibration that does not match their pixels. That is the pair that
+  # cost a 30-epoch run, and DriveSuprimFeatureBuilder now refuses it outright.
+  bev_num_cameras: 3
+
+  # --- BEV segmentation target.  See DriveSuprimConfig.aux_bev_drivable_layers.
+  # LANE + INTERSECTION (the inherited default) paints a roundabout's centre
+  # island as drivable, because INTERSECTION is one polygon over the whole
+  # junction.  LANE + LANE_CONNECTOR keeps the through-lanes and drops the
+  # island, and is what pdm_scorer._road_edge_compliance reads.
+  aux_bev_drivable_layers:
+    - LANE
+    - LANE_CONNECTOR
+  # Inverse frequency of the target as the loss sees it, over the WHOLE training
+  # split: 145.7M cells, all 46,509 frames of all 1,552 clips, counted through
+  # this builder, with the frames the gate below drops excluded since they never
+  # reach the cross-entropy.  Background 64.469% / drivable 35.531%.
+  # The inherited [1.0648, 0.9352] is navtrain's, where drivable is the MAJORITY
+  # class (53.24%) -- the wrong way round here.
+  aux_bev_seg_class_weights: [0.7106, 1.2894]
+  # Frames whose map does not cover the road the car is on contribute nothing to
+  # the segmentation term: 45 of 46,509, 0.10% of the training split.  Their
+  # trajectory labels are untouched, so they stay in the split.
+  aux_bev_seg_require_ego_on_road: true
+
+  # --- NuRec score terms.  Identical in all four *_nurec agents; keep them so.
+  # tests/test_nurec_agent_score_terms.py fails if they drift apart.
+  #
+  #   score = NC x DAC x GT x EP
+  #
+  # Five of the eight EPDMS sub-scores are gone: lane keeping (fired on 27.1% of
+  # frames, measuring a lane annotation about a metre off the driven line),
+  # driving direction (2.6%, tests route membership rather than heading), traffic
+  # light (constant -- NuRec publishes no signal state), history comfort (8.0%,
+  # the controller's ripple), time-to-collision (0.5%, and AlpaSim has no such
+  # term).  A head on any of them would spend capacity learning a constant.
+  # gt_compliance replaces them: 4 m of lateral drift from the recorded run ends
+  # the scene, the way a collision does.
+  pdm_heads:
+    - no_at_fault_collisions
+    - drivable_area_compliance
+    - ego_progress
+
+  trajectory_pdm_weight:
+    no_at_fault_collisions: 3.0
+    drivable_area_compliance: 3.0
+    ego_progress: 2.0
+
+  # Ranking only -- these never enter a gradient; they decide which of the
+  # trained heads' candidates wins, and which enter refinement's top-k.
+  #
+  # Held IDENTICAL to drivesuprim_agent_flatvits_planonly_nurec, the `nodistill`
+  # baseline (ABLATIONS.md: 0.9589 on the full val split, best of the ten
+  # configurations tried).  The product form -- s(NC) x s(DAC) x s(EP) plus a
+  # normalised imitation bonus -- replaced the log-sum gates below, and 17 of the
+  # 22 ranking compositions tested against it tied rather than beat it, so it is
+  # treated as settled.  Diverging here would make the staged run and the
+  # plan-only baseline incomparable, which is the only reason to run both.
+  pdm_rank_product: true
+  pdm_rank_imi_normalize: true
+  pdm_imi_rank_weight: 1.0
+  pdm_rank_product_terms:
+    - no_at_fault_collisions
+    - drivable_area_compliance
+    - ego_progress
+  pdm_rank_product_exponents: {}
+  # Read only when pdm_rank_product is false.  Kept at the plan-only values so
+  # the two configs stay diffable rather than differing in a dead key.
+  pdm_score_log:
+    no_at_fault_collisions: 0.5
+    drivable_area_compliance: 0.5
+  pdm_score_sum:
+    ego_progress: 5.0
+  pdm_score_sum_scale: 6.0
+
+  # NC is 0/1 here, not 0/0.5/1 -- AlpaSim's at-fault rule has no half state --
+  # and gt_compliance is 0/1 by construction.  Nothing needs collapsing.
+  pdm_three_class_terms: []
+
+  # An extra head predicting the aggregate itself, supervised on the label's own
+  # pdm_score column.  Enters the ranking as a sigmoid bonus, not a log factor:
+  # it is already a score in [0, 1], not a gate that should be able to veto.
+  pdm_aggregate_head: true
+  pdm_aggregate_loss_weight: 1.0
+  # 0.0, not 1.0.  The head itself is load-bearing -- removing it costs 0.0250
+  # (ABLATIONS.md `noagg`, t=-13.09) -- but it earns that through the shared
+  # trunk, not by voting in the ranking.  The plan-only baseline keeps it at 0.
+  pdm_aggregate_rank_weight: 0.0

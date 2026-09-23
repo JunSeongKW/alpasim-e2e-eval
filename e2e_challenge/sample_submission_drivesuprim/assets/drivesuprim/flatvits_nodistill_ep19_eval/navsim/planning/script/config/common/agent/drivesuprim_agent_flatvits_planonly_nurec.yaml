@@ -1,0 +1,52 @@
+# DriveSuprim's original front-end, carrying this project's ViT-S and route.
+#
+# The difference from drivesuprim_agent_bevformer_vov_v2_vits_planonly_scratch_nurec
+# is one thing only: where the image features go.
+#
+#   that one   3 cameras -> ViT-S -> BEVFormer projects into a 56x56 BEV grid
+#              -> planner reads BEV cells
+#   this one   3 cameras stitched into one panorama -> ViT-S -> planner reads
+#              the image tokens directly.  No BEV projection, no calibration in
+#              the loop, which is what DriveSuprim actually ships.
+#
+# Everything else is deliberately held: route stays on, the label is the same
+# v6 NC x DAC x EP, the three heads and the product ranking are untouched, so a
+# run of this against the BEV one isolates the front-end.
+#
+# TOKEN COUNT MATCHES THE ORIGINAL.  DriveSuprim stitches nuPlan's 1920x1080
+# trio into 4096x1024, resizes to 2048x512 and runs DAViT at stride 32 -> 16x64
+# = 1024 tokens.  NuRec ships rectified 512x256, so the same stitch (front view
+# whole, 128 columns off each side view) is 1024x256 -- already 4:1, no resize --
+# and ViT-S at patch 16 gives 16x64 = 1024.  Same budget, native resolution.
+#
+# WHAT THIS GIVES UP.  The BEV path is the only one that can carry the aux
+# segmentation head, since that head decodes a BEV grid; `use_aux_heads` is
+# forced false below rather than left to fail.  It also drops the pitch/roll
+# correction that `tilt_for` applies inside the projection, because there is no
+# projection -- a graded scene arrives as whatever the camera saw.
+
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits_planonly_scratch_nurec
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_flatvits_planonly_nurec_ckpt
+
+  # --- the front-end swap ---
+  backbone_type: vits_flat
+
+  # Three cameras stitched, not three cameras projected.  n_camera drives the
+  # stitch in DriveSuprimFeatureBuilder; bev_num_cameras drove the projection.
+  n_camera: 3
+  camera_width: 1024
+  camera_height: 256
+  # ViT-S is patch 16, not the stride 32 the //32 defaults assume.
+  img_vert_anchors: 16
+  img_horz_anchors: 64
+
+  # No BEV grid, so no BEV segmentation head to decode one.
+  use_aux_heads: false
+
+  # Pixel-space rotation augmentation needs the 5-camera panorama; the NuRec
+  # logs only rectified three.
+  only_ori_input: true

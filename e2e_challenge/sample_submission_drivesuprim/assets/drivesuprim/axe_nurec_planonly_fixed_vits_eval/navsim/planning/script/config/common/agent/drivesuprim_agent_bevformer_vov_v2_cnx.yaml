@@ -1,0 +1,263 @@
+# v2 with the image backbone swapped to ConvNeXt V2-Tiny (FCMAE).
+#
+# Replaces V2-99 (VoVNetV2-99, dd3d-pretrained). Consequences beyond the name:
+#
+#  - out strides 8/16/32 come from timm stages (1,2,3), NOT (2,3,4): ConvNeXt has
+#    four stages at reductions [4,8,16,32] while ResNet has five at [2,4,8,16,32].
+#    The backbone picks them by stride now, so this is handled.
+#  - FPN num_outs 3 (was 2 in v2, 4 in v1): three backbone stages in, three levels
+#    out, no extra coarse level and no truncation. Value tokens per view go
+#    640 -> 2720, i.e. this UNDOES v2's biggest speed cut and buys back the
+#    stride-8 detail that cut was spending.
+#  - normalisation must be ImageNet: FCMAE was trained under it, and dd3d's
+#    constants belong to the V2-99 checkpoint that is no longer here.
+#  - channels become 192/384/768 (V2-99 gave 512/768/1024).
+#
+# The backbone changes, so this cannot load any existing checkpoint. Stage 1 from
+# scratch, and re-measure det/mAP and seg/iou before trusting the speed.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2
+  - _self_
+
+config:
+  bevformer_img_backbone_type: cnn
+  bevformer_img_backbone: convnextv2_tiny.fcmae
+  bevformer_cnn_pretrained: true
+  bevformer_cnn_out_strides: [8, 16, 32]
+  bevformer_img_norm: imagenet
+
+  # All seven annotated classes, not the four the base config keeps. Share of
+  # boxes inside the BEV range, full-split scan (navtrain 47950 / navtest 5044):
+  #   generic_object 42.82 / 33.85 %      traffic_cone 5.52 / 8.84 %
+  #   vehicle        25.76 / 32.15 %      barrier      1.18 / 2.64 %
+  #   pedestrian     24.27 / 21.87 %      bicycle      0.24 / 0.40 %
+  #                                       czone_sign   0.20 / 0.25 %
+  # The three that were dropped are rare in training but barrier is 2.2x more
+  # common in navtest than navtrain, so it costs more at evaluation than the
+  # training share implies -- and it matters most for the gate: segmentation
+  # only supervises drivable area, so an unlisted barrier is invisible to BOTH
+  # heads and the gate drives through it as free space.
+  aux_agent_classes: ['vehicle', 'pedestrian', 'bicycle', 'traffic_cone',
+                      'barrier', 'czone_sign', 'generic_object']
+  # Gate box scale per class. All seven are listed so nothing falls through to
+  # feasibility_collision_scale by accident.
+  #
+  # Only the vulnerable road users are widened. PDM zeroes NC outright for
+  # AGENT_TYPES (vehicle, pedestrian, bicycle) but only halves it to 0.5 for the
+  # static types, and pedestrian and bicycle are the two that also move freely
+  # inside the horizon -- measured on navtrain, pedestrian 1.06 m/s median,
+  # bicycle 1.6 m/s median / 10.6 m/s at p95. Full-weight metric plus
+  # unconstrained motion is what earns the 2.0; vehicles are faster still but
+  # large and kinematically constrained, so 1.1 covers them.
+  #
+  # The static classes stay at 1.1: PDM's object manager never propagates them,
+  # so they hold their pose for the whole horizon and a margin covers no motion
+  # uncertainty. Measured medians -- barrier 0.57x2.19 m, czone_sign 0.37x1.28 m,
+  # traffic_cone 0.42x0.43 m -- inflated 2x would block passable candidates for
+  # a metric that only costs 0.5 when hit.
+  feasibility_class_scale:
+    vehicle: 1.1
+    pedestrian: 2.0
+    bicycle: 2.0
+    traffic_cone: 1.1
+    barrier: 1.1
+    czone_sign: 1.1
+    generic_object: 1.1
+  # Inverse-frequency weights for the drivable-area seg loss, measured on the
+  # FULL navtrain split (47950 scenes) over THIS extent -- x 0..56, y +-28,
+  # 56x56, 150.4M cells: 46.76% background / 53.24% drivable -> [1.0648, 0.9352].
+  #
+  # Drivable is the MAJORITY class here, which it was not on the wider extent:
+  # the same full-split scan over x 0..64 / y +-32 gave 50.51 / 49.49 ->
+  # [0.9899, 1.0101]. Trimming the box concentrates it near the ego, where road
+  # is, so the balance tips. That is why the fraction has to be re-measured with
+  # point_cloud_range and not just carried over -- it is an area ratio, so grid
+  # RESOLUTION does not move it, but EXTENT does.
+  #
+  # Both of those replace [0.8064, 1.1936], which came from 388 NAVTEST frames.
+  # That value was not wrong about navtest -- a random 2000-scene navtest draw
+  # gives 41.06% drivable against the 40.32% it recorded -- but these weights
+  # multiply the TRAINING loss, and the splits genuinely differ. Carrying
+  # navtest's imbalance into training penalised drivable misclassification ~1.5x
+  # for no measured reason.
+  #
+  # The weighting stays mild either way (7% off uniform), so this is close to a
+  # no-op; it is kept explicit to record the measurement.
+  aux_bev_seg_class_weights: [1.0648, 0.9352]
+
+  bev_num_feature_levels: 3
+
+  # BEV encoder: 56x56 (1.00 m cell) over x 0..56 m, y +-28 m, z -3..5 m;
+  # deformable attention, 3 layers x 3 levels; concat + conv temporal.
+  #
+  # From v1's 160x160 / 6 layers over x 0..64 / y +-32: queries 25600 -> 3136,
+  # layer-passes 18 -> 5 (3 for the current frame, 1 each for the two history
+  # frames), tensor elements 118.0M -> 4.0M.
+  #
+  # Measured head-to-head, variants interleaved in ONE process so contention
+  # cancels in the per-round ratios:
+  #   v1  160 / 6 layers      319.9 ms median   1.00x
+  #   128 / 4 layers          126.0             2.43x
+  #   128 / 3 layers           84.8             2.70x
+  #   128 / 2 layers           71.9             3.14x
+  #   64  / 4 layers           94.6             3.19x
+  #   64  / 2 layers           75.6             3.48x
+  # and at fixed depth, 128 -> 64 is 1.17x (78.8 -> 66.5 ms over 20 rounds).
+  # Note how flat this is: 64/4 and 128/2 land within 1.6% of each other despite
+  # 64/4 moving half the elements. The encoder stopped being the bottleneck
+  # several cuts ago, so depth and grid now trade against each other cheaply.
+  #
+  # What each side costs when sold:
+  #   depth      -> BEV refinement quality; training partly recovers it
+  #   resolution -> a representation ceiling; it cannot
+  # At a 1.00 m cell, generic_object (0.39x0.38 m), pedestrian (0.81x0.76) and
+  # traffic_cone (0.42x0.43) are sub-cell -- 73% of annotations by count. The
+  # DETR-style head regresses continuous coordinates so they are not lost
+  # outright, but the feature resolution separating neighbouring objects halves.
+  # Segmentation is NOT the concern: rasterised over 600 random navtest scenes,
+  # the drivable target at 64 keeps 96.51% IoU against 128 with 1.50% of cells
+  # flipping (96 -> 97.20%, 48 -> 93.96%). Small-object detection is.
+  # Check per-class recall against a 128 run before treating this as settled.
+  #
+  # The encoder was NOT tuned by sample count: per-layer, spatial cross-attn is
+  # 57% of the time and the FFN 1.1%, yet cutting SAMPLES (sca_num_points 8->4,
+  # keyval 2500->1024) changed nothing measurable while cutting ELEMENTS (grid,
+  # layers) did. It is bandwidth-bound -- what moves matters, not what computes.
+  #
+  # 3 layers is half of BEVFormer/UniAD's 6. The early layers do the image->BEV
+  # lifting, so depth is the other open risk; 4 layers costs only ~9% if the
+  # 3-layer run comes up short.
+  #
+  # History frames run 1 of the 3 layers (weight-shared, no extra parameters):
+  # they are fused by a conv and supply context rather than precise geometry.
+  # TRAINING only -- at inference the streaming cache never re-encodes history.
+  # That does not make training single-pass, and nothing can: a past frame's BEV
+  # has to come from that frame's images, and training samples are shuffled so
+  # there is no stream to carry state along. BEVFormer is in the same position --
+  # forward_train re-encodes history in obtain_history_bev() every step and only
+  # avoids the BACKWARD pass, which bev_history_no_grad already does here.
+  #
+  # Changing depth DELETES parameters, so no earlier checkpoint loads; v2_cnx
+  # needs its own stage-1 run regardless (the backbone changed too).
+  # Extent trimmed from x 0..64 / y +-32 to x 0..56 / y +-28, with the grid
+  # following it to 56x56 so the cell stays exactly 1.00 m (56 m / 56). Queries
+  # drop 4096 -> 3136; the saving is coverage, not resolution.
+  #
+  # What it clips, measured on the 4096 vocabulary: 20 of 4096 trajectories
+  # (0.5%) reach past x = 56 m -- max reach is 58.69 m -- and that is 0.02% of
+  # all poses. Lateral is untouched: |y| never exceeds 22.60 m, so +-28 still
+  # has 5 m of margin. Poses outside the grid are EXCLUDED from the drivable
+  # check by _corner_in_range rather than rejected, so the clipped tail costs
+  # coverage, not false rejections.
+  point_cloud_range: [0.0, -28.0, -3.0, 56.0, 28.0, 5.0]
+
+  # Pillar anchors span -1..2 m, decoupled from point_cloud_range's -3..5.
+  #
+  # The two z ranges answer different questions and BEVFormer only ties them
+  # together for convenience:
+  #   anchors  decide where in the IMAGE each BEV cell samples. Projected
+  #            through lidar2img on navtest, the -3..5 anchors
+  #            [-2.5, -0.17, 2.17, 4.5] land inside an object's 2D extent only
+  #            0.70 times out of 4, and 31.1% of objects get ZERO hits -- the
+  #            other anchors sample sky and road. Worst hit are the small
+  #            classes: czone_sign 50.0% zero, generic_object 42.4%,
+  #            traffic_cone 37.1%, barrier 37.2%, pedestrian 33.9%.
+  #            Over -1..2 the anchors become [-0.5, 0.17, 0.83, 1.5] and that
+  #            goes to 2.17 hits / 5.4% zero -- 3.1x more of the sampling budget
+  #            actually lands on objects, at identical cost.
+  #   pc_range's z ALSO denormalises the detection head's sigmoid box z
+  #            (drivesuprim_model.py:311-314), so it must stay wide. Measured
+  #            box-centre z on navtrain: p1 -0.62, p50 0.56, p99 2.08, max 4.99.
+  #            At -1..2, 1.67% of centres fall outside the range entirely --
+  #            unrepresentable, not merely imprecise -- and p99 sits at sigmoid
+  #            1.03, past saturation. -3..5 keeps every centre inside and holds
+  #            p1..p99 within sigmoid 0.30..0.63, its linear region.
+  #
+  # Tying them forces a compromise (-2..4 was the best single value: 0.98 hits,
+  # 9.5% zero); separating takes the best of both. Verified that the split is
+  # clean: with this set, encoder.pillar_z_range is (-1, 2) while
+  # _agent_head._pc_range z stays (-3, 5), and predicted z spans -2.88..4.97.
+  #
+  # null (the default) reproduces BEVFormer's behaviour exactly, so no other
+  # config changes.
+  bev_pillar_z_range: [-1.0, 2.0]
+  bev_h: 56
+  bev_w: 56
+  bev_num_encoder_layers: 3
+  bev_history_encoder_layers: 1
+
+  # Trajectory vocabulary 8192 -> 4096 (the k-means set that ships in
+  # traj_final/test_4096_kmeans.npy -- an independent clustering, not a subset).
+  #
+  # This is the single largest speed lever left: the trajectory head is the
+  # biggest item in the deploy profile once the encoder is cut, and halving the
+  # candidate set measured 1.51x end-to-end (76.9 -> 55.5 ms median over 20
+  # interleaved rounds), which puts this config level with the ORIGINAL
+  # DriveSuprim R34 (50.6 ms) despite carrying a BEV encoder, detection and
+  # segmentation heads and the feasibility gate that the original has none of.
+  #
+  # The accuracy cost was measured on the released R34 checkpoint over all 12146
+  # navtest scenarios (that run reproduces the published 83.1 exactly at 83.07):
+  #   EPDMS  0.8307 -> 0.8166  (-0.0140)
+  #   2F-COM 0.7688 -> 0.7460  (-0.0228, and it carries weight 2.0)
+  #   DAC    0.9653 -> 0.9541  (-0.0111)
+  #   EP     0.8830 -> 0.8887  (+0.0057 -- more progress, less safety margin)
+  # Read that as an UPPER BOUND on the loss, not the expected one: it swaps the
+  # candidate set under a model TRAINED on 8192, and the imi head is a softmax
+  # over the candidate set, so its calibration is wrong by construction. The two
+  # metrics that fell most are exactly the ones a re-trained scorer should
+  # recover -- 2F-COM depends on picking consistent trajectories across frames.
+  #
+  # Stage 1 is perception-only and does not touch the vocabulary; the real
+  # comparison needs stage 2-3 run at both sizes.
+  vocab_size: 4096
+  vocab_path: ${oc.env:NAVSIM_DEVKIT_ROOT}/traj_final/test_4096_kmeans.npy
+
+  # First-stage trajectory keyval: BEV pooled to 28x28 = 784 tokens.
+  #
+  # 28 rather than 32 because it DIVIDES the 56 grid exactly (56 / 28 = 2).
+  # bev_keyval_pool is an AdaptiveAvgPool2d, which on a non-integer ratio gives
+  # output cells different window sizes -- 56 -> 32 would average 1x1 in some
+  # places and 2x2 in others, stamping a periodic artefact onto the grid the
+  # first-stage scorer reads. An exact ratio makes every cell a clean 2x2 mean.
+  #
+  # This was briefly set to 0 (no pooling, 3136 tokens) on the theory that the
+  # pooling was throwing away half the gap to v1. Measured as drivable-boundary
+  # IoU against a common 320x320 raster, after pushing the target through each
+  # full BEV-grid -> keyval-pool chain, navtest 300 scenes, that looked right:
+  #
+  #   v1     160x160 -> 50x50   2500 tok   1.28 m/cell   0.9619
+  #   ours   56x56   -> 28x28    784 tok   2.00 m/cell   0.9345
+  #   ours   56x56   -> 56x56   3136 tok   1.00 m/cell   0.9451
+  #
+  # It was not right. A stage-2 run at 3136, identical to the 784 baseline in
+  # every other resolved config key, gave EPDMS -0.0060 at ep0 shrinking to
+  # -0.0032 at ep1 (1.5 sigma), 2F-COM within 0.007, and 59% of scenes an
+  # IDENTICAL trajectory. The proxy measured drivable-boundary recoverability;
+  # what the first stage actually has to do is get the right candidate into the
+  # top 256 of 4096 -- a 6.25% budget, generous enough that 2 m cells clear it.
+  # Refinement and the feasibility gate were always reading the full-resolution
+  # map (drivesuprim_model.py: 'patch_token': img_features), so the detail was
+  # never lost where precision matters.
+  #
+  # Back at 28: no measurable accuracy cost, ~4% faster (55.5 vs 56.4 ms median
+  # over 9 interleaved rounds), 0.60M fewer parameters, and it matches the
+  # stage-2 checkpoints the stage-3 runs continue from.
+  #
+  # Changing this resizes _keyval_embedding.weight, the only parameter sized by
+  # token count. That lives in the trajectory head, which stage 1 never trains
+  # (planning_loss_weight=0 -- verified: with dropout off, a stage-1 batch gives
+  # bit-identical loss and image-backbone gradients whatever the head contains,
+  # and _trajectory_head / _keyval_embedding / downscale_layer all receive
+  # exactly 0.0 gradient). So this is a stage-2-onward change; stage 1 is reusable.
+  bev_keyval_grid: 28
+
+  # History frames the way BEVFormer actually does it, verified against
+  # BEVFormer/projects/mmdet3d_plugin/bevformer/detectors/bevformer.py:
+  #   training  -> obtain_history_bev() runs them under self.eval() + no_grad,
+  #                so they still cost a forward but store no activations
+  #   inference -> simple_test() keeps prev_bev in self.prev_frame_info and
+  #                reuses it, so past frames are NEVER re-encoded
+  # Both switches already existed here and were simply off.
+  bev_history_no_grad: true
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_ckpt

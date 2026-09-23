@@ -1,0 +1,15 @@
+# v2 with temporal dropped entirely (bev_seq_len 1).
+#
+# The point of comparison: history frames are fused by a conv at the very end,
+# so if 2 encoder layers are enough for them, maybe 0 is too. Dropping them
+# removes the backbone AND the encoder for those frames -- a far bigger cut than
+# shortening their encoder, and it costs whatever the temporal context was worth.
+# That worth has never been measured here, which is why this config exists.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2
+  - _self_
+
+config:
+  bev_seq_len: 1
+  bev_history_encoder_layers: 0   # nothing to shorten; no history frames left
+  ckpt_path: drivesuprim_bevformer_vov_v2_noseq_ckpt

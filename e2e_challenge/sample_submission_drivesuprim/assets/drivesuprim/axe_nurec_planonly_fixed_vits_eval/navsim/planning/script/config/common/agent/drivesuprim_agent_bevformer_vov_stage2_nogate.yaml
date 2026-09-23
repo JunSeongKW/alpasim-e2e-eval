@@ -1,0 +1,17 @@
+# Stage 2 ABLATION: identical to stage 2 except the feasibility gate is OFF.
+#
+# Exists to answer two questions the ON/OFF evaluation of a gate-TRAINED
+# checkpoint cannot: how much the backbone alone is worth, and whether the gate
+# helps once the planner has been trained without it. Evaluating a gate-trained
+# model with the gate disabled is a train/test mismatch that penalises the OFF
+# arm; training this arm from scratch removes that confound.
+#
+# Everything else -- loss weights, schedule, optimizer, freeze_perception --
+# is inherited unchanged, so the gate is the only difference.
+defaults:
+  - drivesuprim_agent_bevformer_vov_stage2
+  - _self_
+
+config:
+  feasibility_enabled: false
+  ckpt_path: drivesuprim_bevformer_vov_stage2_nogate_ckpt

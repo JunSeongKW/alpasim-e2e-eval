@@ -1,0 +1,49 @@
+# Efficiency variant of the V2-99 / BEVFormer front-end. Same backbone, same
+# heads, same gate -- only the BEV front-end is made cheaper.
+#
+# Measured baseline: ~6 FPS, roughly 4x slower than the original DriveSuprim
+# V2-99 (~24 FPS), which has no BEV encoder at all. 24 is therefore a hard
+# ceiling for this architecture, not a target.
+#
+# Three changes, in descending expected saving:
+#
+# 1+2. bev_history_encoder_layers 2 (was: full 6 for every frame)
+#      forward() runs the FULL backbone + 6-layer encoder on all bev_seq_len=3
+#      frames and fuses them with a conv. The two history frames get context
+#      from a conv afterwards, so the full stack is wasted on them. They now run
+#      the first 2 encoder layers only -- same weights, no new parameters.
+#      Encoder cost per sample: 6+6+6 -> 2+2+6 layers, a 44% cut.
+#
+# 3.   bev_num_feature_levels 2 (was 4)
+#      Deformable spatial cross-attention samples every level, so its cost is
+#      linear in this. BEVFormer uses 4; BEV tasks are commonly reported fine
+#      with 2.
+#
+# 4.   bev_h/bev_w 128 (was 160)
+#      25600 -> 16384 BEV queries, -36%. The drivable-area segmentation head
+#      loses raster resolution, so re-measure seg IoU before trusting this one.
+#
+# Everything here changes the architecture, so a checkpoint trained on the
+# stage1/2/3 configs will NOT load into this. It needs its own stage-1 run.
+defaults:
+  - drivesuprim_agent_bevformer_vov_stage3
+  - _self_
+
+config:
+  # 6 -> 4. BEVFormer/UniAD use 6; the last layers refine an already-formed BEV,
+  # so the first ones carry most of the work. Removing two DELETES parameters, so
+  # a 6-layer checkpoint cannot load into this -- it needs its own stage-1 run.
+  bev_num_encoder_layers: 4
+  bev_history_encoder_layers: 2
+  bev_num_feature_levels: 2
+
+  # Detection decoder 6 -> 4 layers. The det loss sums EVERY decoder layer at full
+  # weight, so cutting layers cuts the detection side of the det:seg balance and
+  # the seg weight has to follow or segmentation silently gains influence:
+  #   6 layers x (cls 2.0 + box 0.25) = 13.5  -> seg 6.75  (2:1)
+  #   4 layers x (cls 2.0 + box 0.25) =  9.0  -> seg 4.5   (2:1)
+  aux_bevformer_det_layers: 4
+  aux_bev_seg_weight: 4.5
+  bev_h: 128
+  bev_w: 128
+  ckpt_path: drivesuprim_bevformer_vov_v2_ckpt

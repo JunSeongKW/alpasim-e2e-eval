@@ -1,0 +1,53 @@
+# Mirrored from the released DriveSuprim requirements. Torch/torchvision are
+# supplied by the matching PyTorch base image and OpenCV is made headless in
+# the Dockerfile as recommended by the DriveSuprim README.
+nuplan-devkit @ git+https://github.com/motional/nuplan-devkit/@nuplan-devkit-v1.2
+scikit-learn==1.2.2
+positional-encodings==6.0.1
+aioboto3
+aiofiles
+bokeh==2.4.3
+casadi
+control==0.9.1
+Fiona
+geopandas>=0.12.1
+guppy3==3.1.2
+hydra-core==1.2.0
+joblib
+matplotlib
+nest_asyncio
+numpy==1.23.4
+opencv-python==4.9.0.80
+pandas
+Pillow
+psutil
+pyarrow
+pyinstrument
+pyogrio
+pyquaternion>=0.9.5
+pytest
+rasterio
+ray
+retry
+rtree
+scipy
+selenium
+setuptools==65.5.1
+Shapely>=2.0.0
+SQLAlchemy==1.4.27
+sympy
+tornado
+tqdm
+ujson
+xformers==0.0.20
+pytorch-lightning==2.2.1
+tensorboard==2.16.2
+notebook
+timm
+einops
+imgaug
+fvcore
+openmim
+grpcio
+grpcio-tools
+dataclasses-json>=0.6.7

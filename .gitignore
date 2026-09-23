@@ -38,3 +38,21 @@ asset_harvesting/
 # which does not require uv.lock.
 **/uv.lock
 .worktrees/
+
+# --- local evaluation workspace (junseong) ---
+# run outputs: tens of GB, results live in runs/<run>/aggregate/results-summary.json
+runs/
+runs-archive/
+outputs/
+.trash-*/
+# renderer shared cache (2.7 GB), OMC tool state, session backups
+.cache/
+.omc/
+*.orig-*
+# checkpoints copied into submission build contexts (originals live in ../models)
+*.ckpt
+*.pth
+# launcher / driver logs
+e2e_challenge/**/*.log
+e2e_challenge/**/*.nohup
+e2e_challenge/**/*.nohup.log

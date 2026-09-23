@@ -1,0 +1,203 @@
+{
+  "_convert_": "all",
+  "_target_": "navsim.agents.drivesuprim.drivesuprim_config.DriveSuprimConfig",
+  "aug_vocab_pdm_score_dir": "ccc",
+  "aux_agent_box_3d": true,
+  "aux_agent_box_weight": 0.25,
+  "aux_agent_class_weight": 2.0,
+  "aux_agent_classes": [
+    "vehicle",
+    "pedestrian",
+    "bicycle",
+    "traffic_cone",
+    "barrier",
+    "czone_sign",
+    "generic_object"
+  ],
+  "aux_agent_head_type": "bevformer",
+  "aux_bev_drivable_layers": [
+    "LANE",
+    "LANE_CONNECTOR"
+  ],
+  "aux_bev_drivable_only": true,
+  "aux_bev_dual_seg": false,
+  "aux_bev_seg_class_weights": [
+    0.7106,
+    1.2894
+  ],
+  "aux_bev_seg_require_ego_on_road": true,
+  "aux_bev_seg_weight": 4.5,
+  "aux_bevformer_det_layers": 4,
+  "aux_bevformer_det_num_queries": 600,
+  "aux_bevformer_det_with_box_refine": true,
+  "aux_predict_agents": false,
+  "aux_seg_convnext_blocks": 2,
+  "backbone_type": "bevformer_m",
+  "bev_embed_dims": 256,
+  "bev_encoder_dtype": "fp32",
+  "bev_h": 56,
+  "bev_history_encoder_layers": 1,
+  "bev_history_no_grad": true,
+  "bev_img_height": 256,
+  "bev_img_width": 512,
+  "bev_keyval_grid": 28,
+  "bev_num_cameras": 3,
+  "bev_num_encoder_layers": 3,
+  "bev_num_feature_levels": 3,
+  "bev_num_points_in_pillar": 4,
+  "bev_pillar_z_range": [
+    -1.0,
+    2.0
+  ],
+  "bev_seq_len": 3,
+  "bev_streaming": false,
+  "bev_use_grad_checkpoint": false,
+  "bev_use_temporal_align": true,
+  "bev_w": 56,
+  "bevformer_cnn_out_strides": [
+    8,
+    16,
+    32
+  ],
+  "bevformer_cnn_pretrained": false,
+  "bevformer_img_backbone_type": "vits",
+  "bevformer_img_norm": "imagenet",
+  "bevformer_vit_ckpt": "",
+  "bevformer_vit_freeze": false,
+  "bevformer_vit_name": "vit_small_patch16_dinov3",
+  "bevformer_vit_pretrained": false,
+  "bevformer_vits_amp": true,
+  "bevformer_vits_flash_dtype": "bf16",
+  "bevformer_vits_learned_resize2": false,
+  "bevformer_vits_ms_down": 1,
+  "bevformer_vits_ms_up": 1,
+  "bevformer_vov_ckpt": "${oc.env:NAVSIM_EXP_ROOT}/models/dd3d_det_final.pth",
+  "bevformer_vov_out_features": [
+    "stage3",
+    "stage4",
+    "stage5"
+  ],
+  "camera_height": 512,
+  "camera_width": 2048,
+  "ckpt_path": "drivesuprim_bevformer_vov_v2_vits_stage3_nurec_ckpt",
+  "ego_perturb": {
+    "_convert_": "all",
+    "_target_": "navsim.agents.drivesuprim.drivesuprim_config.EgoPerturbConfig",
+    "n_student_rotation_ensemble": 3,
+    "offline_aug_angle_boundary": 30.0,
+    "offline_aug_file": null
+  },
+  "feasibility_class_scale": {
+    "barrier": 1.1,
+    "bicycle": 2.0,
+    "czone_sign": 1.1,
+    "generic_object": 1.1,
+    "pedestrian": 2.0,
+    "traffic_cone": 1.1,
+    "vehicle": 1.1
+  },
+  "feasibility_enabled": true,
+  "freeze_perception": false,
+  "img_horz_anchors": 160,
+  "img_vert_anchors": 160,
+  "inference": {
+    "_target_": "navsim.agents.drivesuprim.drivesuprim_config.InferConfig",
+    "model": "teacher",
+    "save_pickle": false,
+    "use_first_stage_traj_in_infer": false
+  },
+  "lr_mult_backbone": 1.0,
+  "lr_mult_img_backbone": 1.0,
+  "n_camera": 3,
+  "normalize_vocab_pos": true,
+  "num_bounding_boxes": 100,
+  "only_ori_input": true,
+  "optimizer_type": "adamw",
+  "ori_vocab_pdm_score_dir": "",
+  "ori_vocab_pdm_score_full_path": "aaa.pkl",
+  "pdm_aggregate_head": true,
+  "pdm_aggregate_loss_weight": 1.0,
+  "pdm_aggregate_rank_weight": 0.0,
+  "pdm_heads": [
+    "no_at_fault_collisions",
+    "drivable_area_compliance",
+    "ego_progress"
+  ],
+  "pdm_imi_rank_weight": 0.3,
+  "pdm_imi_rank_weight_refine": 0.02,
+  "pdm_rank_imi_normalize": true,
+  "pdm_rank_product": true,
+  "pdm_rank_product_exponents": {},
+  "pdm_rank_product_exponents_refine": {
+    "drivable_area_compliance": 0.5
+  },
+  "pdm_rank_product_terms": [
+    "no_at_fault_collisions",
+    "drivable_area_compliance",
+    "ego_progress"
+  ],
+  "pdm_score_log": {
+    "drivable_area_compliance": 0.5,
+    "no_at_fault_collisions": 0.5
+  },
+  "pdm_score_sum": {
+    "ego_progress": 5.0
+  },
+  "pdm_score_sum_scale": 6.0,
+  "pdm_three_class_terms": [],
+  "planning_loss_weight": 1.0,
+  "point_cloud_range": [
+    0.0,
+    -28.0,
+    -3.0,
+    56.0,
+    28.0,
+    5.0
+  ],
+  "refinement": {
+    "_target_": "navsim.agents.drivesuprim.drivesuprim_config.RefinementConfig",
+    "num_refinement_stage": 1,
+    "stage_layers": "3",
+    "topks": "256",
+    "use_imi_learning_in_refinement": true,
+    "use_mid_output": true,
+    "use_multi_stage": true,
+    "use_separate_stage_heads": true
+  },
+  "route_gate_init": 0.0,
+  "route_hidden_dim": 64,
+  "route_norm_m": 80.0,
+  "route_separate_attention": false,
+  "scheduler_epoch": 30,
+  "scheduler_min_lr": 1e-06,
+  "scheduler_type": "cos",
+  "scheduler_warm_epoch": 1,
+  "scheduler_warmup_iters": 500,
+  "scheduler_warmup_ratio": 0.3333333333333333,
+  "sigma": 0.5,
+  "soft_label_imi_diff_thresh": 1.0,
+  "soft_label_score_diff_thresh": 0.15,
+  "soft_label_traj": "first",
+  "training": false,
+  "trajectory_imi_weight": 1.0,
+  "trajectory_pdm_weight": {
+    "drivable_area_compliance": 3.0,
+    "ego_progress": 2.0,
+    "no_at_fault_collisions": 3.0
+  },
+  "trajectory_sampling": {
+    "_convert_": "all",
+    "_target_": "nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling",
+    "interval_length": 0.1,
+    "time_horizon": 4
+  },
+  "update_buffer_in_ema": true,
+  "use_aux_heads": true,
+  "use_route": true,
+  "use_soft_teacher": false,
+  "use_traffic_light_compliance": false,
+  "vadv2_head_nlayers": 3,
+  "vocab_path": "/app/assets/drivesuprim/nurec_train_kmeans_4096x40x3.npy",
+  "vocab_size": 4096,
+  "weight_decay": 0.01
+}

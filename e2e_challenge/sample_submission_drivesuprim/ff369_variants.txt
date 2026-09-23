@@ -1,0 +1,42 @@
+# name | rank_json | mpc overrides
+# 공통 기반: long 0.5 / lat 6.0 (최적조합).  MPC 미지정 항목은 기본값.
+# 대조군 두 개
+A_best|dac3|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+B_finer|dac3|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=4.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0
+# 랭킹 축: 도로유지 더 강하게
+C_dac5|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+D_dac8|dac8|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+# 속도 축: 이 클립은 GT 의 2.01 배로 커브 진입 -> 감속시키는 두 경로
+E_dac5ep03|dac5_ep03|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+F_dac5accel|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.acceleration_weight=2.0
+# 제어 축: 헤딩 + 해상도 (B 에서 heading 만 낮춤 / 높임)
+G_dac5head2|dac5|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=2.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0
+H_dac5idx1|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=1 controller.gains.heading_weight=2.0
+# --- 2차: 후보 풀 / 미탐색 축 ---
+I_topk512|dac5_topk512|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+J_topk1024|dac5_topk1024|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+K_imi2|dac5_imi2|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+L_agg05|dac5_agg05|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+M_nc3ep03|dac5_nc3ep03|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+N_relsteer2|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.rel_front_steering_angle_weight=2.0
+O_lat10|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=10.0 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=2.0
+P_accel4|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.acceleration_weight=4.0
+# --- 3차: 상위 후보 반복 실행 (실행 간 편차 측정) ---
+A_best_r1|dac3|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+A_best_r2|dac3|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+A_best_r3|dac3|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+B_finer_r1|dac3|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=4.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0
+B_finer_r2|dac3|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=4.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0
+B_finer_r3|dac3|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=4.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0
+D_dac8_r1|dac8|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+D_dac8_r2|dac8|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+D_dac8_r3|dac8|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+K_imi2_r1|dac5_imi2|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+K_imi2_r2|dac5_imi2|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+K_imi2_r3|dac5_imi2|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3
+N_relsteer2_r1|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.rel_front_steering_angle_weight=2.0
+N_relsteer2_r2|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.rel_front_steering_angle_weight=2.0
+N_relsteer2_r3|dac5|controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0 controller.gains.idx_start_penalty=3 controller.gains.rel_front_steering_angle_weight=2.0
+G_dac5head2_r1|dac5|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=2.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0
+G_dac5head2_r2|dac5|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=2.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0
+G_dac5head2_r3|dac5|controller.dt_mpc=0.0667 controller.n_horizon=30 controller.gains.idx_start_penalty=2 controller.gains.heading_weight=2.0 controller.gains.long_position_weight=0.5 controller.gains.lat_position_weight=6.0

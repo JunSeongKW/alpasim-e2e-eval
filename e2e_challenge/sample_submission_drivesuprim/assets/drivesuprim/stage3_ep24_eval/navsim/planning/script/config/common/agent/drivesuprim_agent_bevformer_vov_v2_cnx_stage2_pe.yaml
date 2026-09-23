@@ -1,0 +1,59 @@
+# Stage 2 with a positional embedding on the REFINEMENT stage's key/value tokens.
+#
+# One knob away from drivesuprim_agent_bevformer_vov_v2_cnx_stage2: everything
+# else -- stage-1 init, LR, epochs, freeze scope, gate, loss weights, the 3136-
+# token keyval -- is inherited unchanged, so a run of this against a run of that
+# isolates refinement.keyval_pos_embed.
+#
+# Why it exists: the first stage adds _keyval_embedding to its keyval; refinement
+# adds nothing, so 3136 BEV tokens arrive with no indication of which metric cell
+# each came from. That is inherited from the ORIGINAL DriveSuprim, where the
+# tokens are patches of a perspective panorama and their content already tells
+# them apart -- BEV cells of empty road do not. SafeDrive adds a
+# LearnedPositionalEncoding in EVERY transformer, refinement included
+# (navsim/agents/safedrive/modules/transformer_motion.py:87-89).
+#
+# Cost: +1.61M params (student + teacher, 3136 x 256 each), no measurable compute.
+#
+# Retraining scope is stage 2 onward. The new tensor lives in the trajectory
+# offset head, and stage 1 sets planning_loss_weight=0, so nothing in that head
+# is trained there -- verified directly: with dropout disabled, a stage-1 batch
+# gives bit-identical loss and image-backbone gradients whatever the trajectory
+# head contains, and _trajectory_head / _keyval_embedding / downscale_layer all
+# receive exactly 0.0 gradient. Use the same stage-1 checkpoint as the baseline.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx_stage2
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_stage2_pe_ckpt
+
+  # Pinned so this file still reproduces the run that was made from it. The base
+  # config was on 0 (3136 tokens) at the time and has since gone back to 28.
+  bev_keyval_grid: 0
+
+  refinement:
+    keyval_pos_embed: true
+
+# RESULT (navtest, all five stage-2 epochs, paired against the 784 baseline):
+# no effect. Most scenes tie, so the sensitive statistic is the sign test on
+# EPDMS and McNemar on the binary 2F-COM:
+#
+#   ep   EPDMS base -> pe      sign z       2F-COM base -> pe     McNemar z
+#    0   0.7632  0.7602  -0.0030  +1.1      0.6298  0.6210  -0.0088   -2.1
+#    1   0.7839  0.7793  -0.0046  +1.6      0.6345  0.6249  -0.0096   -2.5
+#    2   0.7828  0.7847  +0.0019  +4.1      0.5953  0.6091  +0.0137   +3.5
+#    3   0.7861  0.7862  +0.0001  +2.3      0.5973  0.5949  -0.0024   -0.6
+#    4   0.7872  0.7857  -0.0015  +0.9      0.5839  0.5814  -0.0025   -0.6
+#   pooled  win 13034 / lose 12326  z=+4.4     PE-only 4057 / base-only 4155  z=-1.1
+#
+# The direction is real and the magnitude is not: pooled over five epochs the
+# pos-embed wins more scenes than it loses (4.4 sigma), but it loses by more on
+# the scenes it loses, and the final EPDMS is -0.0015. 2F-COM, the metric that
+# actually carries the v1 gap (-0.18), is untouched -- ep2's +3.5 sigma did not
+# survive ep3 or ep4.
+#
+# So refinement's spatial addressing was not a bottleneck. Either the decoder
+# does not need cell positions, or 803K flat embedding parameters are too many
+# to train from 256 queries; this run cannot separate those, and a row/col
+# factorised form (SafeDrive's, ~16K params) is worth less now than it looked.

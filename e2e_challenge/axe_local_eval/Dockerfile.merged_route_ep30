@@ -1,0 +1,13 @@
+# stage3_merged_route_ep30 in the ep30 image, with only the weights swapped.
+#
+# The two checkpoints carry identical architectures -- 1,344 tensors, same keys,
+# same shapes -- so the ep30 image already has the right config, vocabulary and
+# ego-footprint environment. They differ only in training: 30,330 optimiser
+# steps here against 21,780 there, at the same epoch count.
+FROM alpasim-e2e-drivesuprim-stage3:ep30
+COPY stage3_merged_route_ep30.ckpt /app/assets/drivesuprim/axe_nurec_vits.ckpt
+
+# start_drivers.sh checks this label rather than the file, so a swap that
+# updates only the weights leaves the guard asserting the base image's hash --
+# the exact mislabelling the guard exists to catch, pointed the wrong way.
+LABEL org.alpasim.checkpoint.sha256=364c801e397e9d6e36ea1f9027dc4ca804ad2e429bb588cf4e84185ca851de3d

@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+import lzma
+import pickle
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, List, Optional
+
+from nuplan.common.actor_state.ego_state import EgoState
+from nuplan.common.actor_state.state_representation import TimePoint
+from nuplan.common.utils.io_utils import save_buffer
+from nuplan.planning.simulation.observation.observation_type import DetectionsTracks
+from nuplan.planning.simulation.trajectory.interpolated_trajectory import InterpolatedTrajectory
+
+from navsim.common.dataclasses import Trajectory
+from navsim.common.enums import SceneFrameType
+from navsim.planning.simulation.planner.pdm_planner.observation.pdm_observation import PDMObservation
+from navsim.planning.simulation.planner.pdm_planner.observation.pdm_occupancy_map import PDMDrivableMap
+from navsim.planning.simulation.planner.pdm_planner.utils.pdm_path import PDMPath
+
+
+@dataclass
+class MapParameters:
+    map_root: str
+    map_version: str
+    map_name: str
+
+
+@dataclass
+class MetricCache:
+    """Dataclass for storing metric computation information."""
+
+    file_path: Path
+    log_name: str
+    timepoint: TimePoint
+    scene_type: SceneFrameType
+    trajectory: InterpolatedTrajectory
+    human_trajectory: Optional[Trajectory]  # not available for synthetic scenes
+    past_human_trajectory: InterpolatedTrajectory
+    ego_state: EgoState
+
+    observation: PDMObservation
+    centerline: PDMPath
+    route_lane_ids: List[str]
+    drivable_area_map: PDMDrivableMap
+
+    past_detections_tracks: List[DetectionsTracks]  # past objects at 2Hz
+    current_tracked_objects: List[DetectionsTracks]  # List containing only current objects
+    future_tracked_objects: List[DetectionsTracks]  # interpolated at 10Hz
+
+    map_parameters: MapParameters
+
+    # AlpaSim decides offroad by contact with the road edge rather than by
+    # containment in a drivable area, so the scorer needs the boundary lines
+    # themselves.  Telling a flyover's edge from the road beneath it needs their
+    # heights: ``road_edge_elevations`` is one median height per line, kept for
+    # readers that only want a summary, while ``road_edge_profiles`` carries the
+    # per-vertex heights the scorer matches against -- a single line spans up to
+    # 6.1 m end to end here and its median describes neither end.
+    # ``road_surfaces`` are the lane centrelines with their own heights, the
+    # frame in which "the road under this body" is resolved.  All optional:
+    # NAVSIM caches have no boundaries and keep the nuPlan rule.
+    road_edges: Optional[List[Any]] = None
+    road_edge_elevations: Optional[Any] = None
+    road_edge_profiles: Optional[List[Any]] = None
+    road_surfaces: Optional[List[Any]] = None
+    road_surface_profiles: Optional[List[Any]] = None
+
+    def dump(self) -> None:
+        """Dump metric cache to pickle with lzma compression."""
+        # TODO: check if file_path must really be pickled
+        pickle_object = pickle.dumps(self, protocol=pickle.HIGHEST_PROTOCOL)
+        save_buffer(self.file_path, lzma.compress(pickle_object, preset=0))

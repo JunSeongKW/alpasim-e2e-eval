@@ -1,0 +1,60 @@
+# Stage 2 of 3 -- planner on frozen perception -- for the v2_r50 architecture.
+#
+# Same recipe as drivesuprim_agent_bevformer_vov_v2_cnx_stage2, re-based onto
+# v2_r50 so the architecture keys (ResNet-50 backbone, nuImages-pretrained,
+# 56x56 grid, 3 encoder layers, 7 classes, pillar z split) come from that line
+# rather than v2_cnx's. drivesuprim_agent_bevformer_vov_v2_r50 itself only
+# swaps the image backbone (bevformer_img_backbone / bevformer_cnn_pretrained /
+# bevformer_cnn_nuimg_ckpt) on top of v2_cnx -- every other architecture key
+# (BEV encoder, FPN, planner, vocabulary, loss weights) is unchanged, so this
+# file needs no backbone fields of its own; they arrive through the defaults
+# chain below.
+#
+# NOTE ON THIS ARCHITECTURE'S STAGE 1: unlike v2_cnx/v2_vits, r50 has no saved
+# *_stage1.yaml -- its perception-pretrain run was launched as CLI overrides
+# directly on drivesuprim_agent_bevformer_vov_v2_r50.yaml
+# (agent.config.planning_loss_weight=0.0, agent.config.feasibility_enabled=false,
+# use_aux_heads left at its true default of true), and it reused the SAME
+# experiment_name/output directory as an earlier, unrelated r50 planning-only
+# ablation (drivesuprim_agent_bevformer_vov_v2_r50/stage_layers_3-topks_256) --
+# hence the "-v1"-suffixed checkpoints in that directory where the two runs'
+# epoch/step numbers collided. That stage-1 run crashed resuming into epoch 17
+# (mmcv im2col_step); epoch=16-step=45220.ckpt is the latest checkpoint it
+# produced and is what this stage should chain from -- pass it via CKPT=...
+# at launch, same as every other stage2 config (see checkpoint_path below).
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_r50
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_r50_stage2_ckpt
+
+  # Planning switched on, perception held fixed. Stage 1 already trained the
+  # detection and segmentation heads; freezing them here means the planner
+  # learns against a STABLE feasibility gate instead of one that moves under it.
+  planning_loss_weight: 1.0
+  freeze_perception: true
+
+  # The gate is on from here. It reads the frozen heads' drivable map and boxes,
+  # so refinement is trained on the same candidate set it will see at inference
+  # -- leaving it off in training and on at test time is a train/test mismatch.
+  feasibility_enabled: true
+
+  # Detection weights are identical across all three stages (BEVFormer's
+  # FocalLoss 2.0 / L1 0.25); seg is 4.5 to hold det : seg at 2:1 against this
+  # config's 4 decoder layers. Restated so the file is self-contained.
+  aux_agent_class_weight: 2.0
+  aux_agent_box_weight: 0.25
+  aux_bev_seg_weight: 4.5
+
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+checkpoint_path: null      # train.sh passes the stage-1 ckpt via CKPT
+lr: 1e-4

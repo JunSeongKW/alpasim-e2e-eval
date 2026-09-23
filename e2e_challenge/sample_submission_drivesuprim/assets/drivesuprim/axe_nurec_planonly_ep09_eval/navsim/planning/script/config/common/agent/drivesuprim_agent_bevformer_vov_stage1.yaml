@@ -1,0 +1,69 @@
+# Stage 1 of 3 -- perception. (EAD phase 1: no_planning=True, trained from scratch.)
+#
+# Planning off, perception trained. The detection loss weights are BEVFormer's
+# (FocalLoss weight 2.0 / L1 weight 0.25, no IoU term) and the segmentation
+# weight keeps EAD's seg : det_cls = 14 : 5 against them (2.0 x 2.8 = 5.6).
+#
+# These weights are IDENTICAL in all three stages. EAD does not re-weight between
+# phases -- it controls the schedule with planning on/off and the perception
+# freeze alone -- so neither do we.
+defaults:
+  - drivesuprim_agent_bevformer_vov
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_stage1_ckpt
+
+  # Perception only. A multiply-by-zero, not a skip: the trajectory head still
+  # runs and still receives (zero) gradients, so DDP does not report unused
+  # parameters. The PDM score pickles are still read, so
+  # ori_vocab_pdm_score_full_path must stay valid.
+  planning_loss_weight: 0.0
+  freeze_perception: false
+
+  # The one stage where the gate is off. It is on by default and stays on in
+  # stages 2 and 3, but here planning_loss_weight is 0, so every planning
+  # gradient is multiplied away and the gate cannot change a single weight --
+  # it would only spend time building an 8192 x 40 x 4-corner mask per step.
+  feasibility_enabled: false
+
+  aux_agent_class_weight: 2.0
+  # 8 : 1, as BEVFormer and UniAD both use (FocalLoss 2.0 / L1 0.25). UniAD is
+  # the closest reference available: BEVFormer backbone, 6 decoder layers,
+  # same weights in both of its stages. EAD's 5 : 2 = 2.5 : 1 comes from a
+  # 4-layer GKT head.
+  aux_agent_box_weight: 0.25
+  # 6.75 keeps EAD's detection : drivable-segmentation balance of 2 : 1.
+  # Both sides sum every decoder layer at full weight, so the comparison is
+  #   EAD   : 4 layers x (5.0 cls + 2.0 box) = 28  vs  drivable 14  -> 2 : 1
+  #   ours  : 6 layers x (2.0 cls + 0.25 box) = 13.5 -> seg 6.75  -> 2 : 1
+  # Taking EAD's per-layer seg : cls ratio (14 : 5) literally would leave
+  # detection 1.5x heavier here, because this head has 6 layers to EAD's 4.
+  # Rescale this whenever aux_bevformer_det_layers or the det weights change.
+  aux_bev_seg_weight: 6.75
+
+  # EAD's schedule: cos, 1 warmup epoch, min_lr 1e-6, scheduler_epoch 30.
+  # scheduler_epoch is 30 in ALL of EAD's phases even though they run for
+  # 20 / 5 / 30 epochs -- the cosine is deliberately truncated. This stage
+  # runs 20 epochs (perception), so pass EPOCHS=20 to the training script;
+  # do NOT 'fix' scheduler_epoch to match it.
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  # BEVFormer and UniAD both use AdamW(wd=0.01) with an iteration-based linear
+  # warmup of 500 steps from lr/3, plus grad_clip max_norm=35 (passed by the
+  # training script as GRAD_CLIP).
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+# 1e-4, matching EAD -- but its config alone does not say so, which is where the
+# "phase 1 runs at 2e-4" claim came from. ead_bev_C_phase1.yaml:64 declares
+# lr: 2e-4, and run_train_EAD_C_phase1.sh:53 then passes
+# agent.config.lr=${LEARNING_RATE} with LEARNING_RATE=1e-4, so the command line
+# wins and every EAD phase actually trains at 1e-4. Read the script, not the yaml.
+#
+# Every stage-1/2/3 run on this box, v1 and v2_cnx alike, used agent.lr=1e-4.
+lr: 1e-4

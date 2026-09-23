@@ -1,0 +1,50 @@
+# Stage 2, planning objective ONLY: no auxiliary perception loss, no perception
+# heads, no feasibility gate. The image backbone, BEV encoder and planner all
+# train, and the only thing shaping them is the trajectory objective.
+#
+# use_aux_heads=false does not merely zero the aux loss -- it stops the heads
+# being CONSTRUCTED at all (drivesuprim_model.py:406-407), so there is no
+# detection or segmentation branch in the graph and no aux term in the loss
+# (drivesuprim_agent.py:343 is gated on the same flag).
+#
+# feasibility_enabled=false follows necessarily, not as a separate choice: the
+# gate reads bev_seg_map and the detection boxes from those heads, and with the
+# heads gone there is nothing to gate on.
+#
+# WHY RUN IT. Everything measured so far says our gap to the originals is one
+# metric -- two_frame_extended_comfort, -0.21 against ViT-L at the same 4096
+# vocabulary, while every other sub-metric sits within 0.03 and ego_progress is
+# +0.04 in our favour. Excluding 2F-COM the gap to R34@4096 is only -0.0055.
+# Ruled out by direct measurement: vocab size (-0.013, consistent across three
+# models), keyval token count (converges to nothing), BEV extent (0.5pp of
+# trajectories), refinement positional embedding (-0.0015 over five epochs),
+# aux_detach_bev (harmful, and its control drops 2F-COM just the same), and
+# ego_progress over-optimisation (at matched EP, 0.973 on 6965 scenes, the gap
+# is still -0.204).
+#
+# What has NOT been separated is whether the perception branch helps the planner
+# at all in this architecture. Stage 2 normally freezes perception and keeps the
+# gate; stage 3 unfreezes it. This run removes the branch entirely, so the
+# trajectory objective owns the whole trunk. It answers two things at once:
+# whether the aux losses were holding the BEV features back, and what the gate
+# was actually worth (v1 measured its contribution at only +0.0023).
+#
+# Start from the stage-1 checkpoint: its backbone was trained on perception, and
+# the detection/segmentation weights it carries are simply dropped as unexpected
+# keys. bev_keyval_grid is 28 in the base config, matching that checkpoint.
+#
+# EXPECT PERCEPTION TO BE UNMEASURABLE HERE. mAP and seg IoU vanish from the
+# logs along with the heads, so this run can only be judged on EPDMS and its
+# sub-metrics -- and it cannot be continued into a stage 3 that uses the gate
+# without re-training the heads on whatever trunk it produces.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx_stage2
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_stage2_planonly_ckpt
+
+  planning_loss_weight: 1.0
+  freeze_perception: false     # backbone + BEV encoder train, on planning loss alone
+  use_aux_heads: false         # no detection/segmentation branch at all
+  feasibility_enabled: false   # nothing left for the gate to read

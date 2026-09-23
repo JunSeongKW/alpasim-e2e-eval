@@ -1,0 +1,38 @@
+# Planning objective only, and NO stage 1: the image backbone starts from its
+# own ImageNet/FCMAE pre-training and everything downstream starts from scratch.
+#
+# Identical to drivesuprim_agent_bevformer_vov_v2_cnx_stage2_planonly in every
+# resolved key except the output directory. The difference is entirely in how it
+# is LAUNCHED: run it WITHOUT the CKPT env var, so no stage-1 checkpoint is
+# loaded. Nothing in the config can express that -- checkpoint_path is null here
+# and train.sh only sets it when CKPT is present -- which is why this file exists
+# as a separate agent name: it keeps the two runs' checkpoints apart and makes
+# the intent readable from the experiment directory.
+#
+# What each component starts from:
+#   image backbone   timm convnextv2_tiny.fcmae, pretrained (bevformer_cnn_pretrained: true)
+#   BEV encoder      random
+#   temporal_fuse    random
+#   planner          random (as in every stage -- stage 1 never trains it,
+#                    planning_loss_weight is 0 there)
+#
+# WHY. The planning-only stage 2 reached 0.7940 at its SECOND epoch, above the
+# full stage1->2->3 pipeline's best of 0.7905, with no perception heads and no
+# feasibility gate. That says the perception branch contributed nothing to the
+# planner. This run asks the next question: did stage 1's perception PRE-TRAINING
+# of the trunk contribute anything either, or is an ImageNet-pretrained backbone
+# plus the trajectory objective enough?
+#
+# Expect the first epochs to be worse -- the BEV encoder has to learn image->BEV
+# lifting from the planning signal alone, which stage 1 otherwise supplies. The
+# question is where it lands by epoch 10, not where it starts.
+#
+# Same caveats as the planning-only run: no mAP or seg IoU in the logs (the heads
+# do not exist), and the result cannot feed a stage 3 that uses the gate without
+# training heads on the resulting trunk first.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx_stage2_planonly
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_planonly_scratch_ckpt

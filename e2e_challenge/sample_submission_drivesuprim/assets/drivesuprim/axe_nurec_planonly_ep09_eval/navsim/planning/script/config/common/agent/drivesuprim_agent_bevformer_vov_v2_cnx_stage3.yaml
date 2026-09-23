@@ -1,0 +1,48 @@
+# Stage 3 of 3 -- end-to-end fine-tune -- for the v2_cnx architecture.
+#
+# Same recipe as drivesuprim_agent_bevformer_vov_stage3, re-based onto v2_cnx.
+# Perception is unfrozen here and trained alongside the planner.
+#
+# What that costs, measured on v1's own run: the first stage-3 epoch drops mAP
+# 0.4524 -> 0.4194 and seg IoU 0.8475 -> 0.8158 (ending at 0.4139 / 0.8097),
+# while every PDM sub-loss improves -- DAC -20%, LK -14%, NC -7%. The planner
+# reshapes the shared BEV features for itself and the perception heads follow.
+#
+# That trade is worse for this architecture than it was for v1, because the
+# feasibility gate reads those heads. Two knobs exist to bias it, both OFF by
+# default so this file reproduces v1's recipe:
+#   aux_detach_bev=true          perception losses stop at their heads; the
+#                                trunk follows the planner alone
+#   lr_mult_img_backbone=0.5     ConvNeXt at half lr (SafeDrive's choice; note
+#                                lr_mult_backbone is the BEV encoder, not the
+#                                image backbone -- the names do not line up)
+# Compare them on EPDMS *and* on the gate ON/OFF delta: gate contribution was
+# only +0.0023 for v1, and protecting perception is only worth it if that grows.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_cnx
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_cnx_stage3_ckpt
+
+  planning_loss_weight: 1.0
+  freeze_perception: false
+  feasibility_enabled: true
+
+  # Identical across all three stages (BEVFormer's FocalLoss 2.0 / L1 0.25);
+  # seg 4.5 holds det : seg at 2:1 against this config's 4 decoder layers.
+  aux_agent_class_weight: 2.0
+  aux_agent_box_weight: 0.25
+  aux_bev_seg_weight: 4.5
+
+  scheduler_type: 'cos'
+  scheduler_epoch: 30
+  scheduler_warm_epoch: 1
+  scheduler_min_lr: 1e-6
+  optimizer_type: 'adamw'
+  weight_decay: 0.01
+  scheduler_warmup_iters: 500
+  scheduler_warmup_ratio: 0.3333333333333333
+
+checkpoint_path: null      # train.sh passes the stage-2 ckpt via CKPT
+lr: 1e-4

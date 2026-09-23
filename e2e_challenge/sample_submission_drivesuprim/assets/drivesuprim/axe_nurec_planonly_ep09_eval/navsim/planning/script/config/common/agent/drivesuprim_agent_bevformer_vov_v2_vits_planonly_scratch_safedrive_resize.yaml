@@ -1,0 +1,11 @@
+# Same as drivesuprim_agent_bevformer_vov_v2_vits_planonly_scratch, with the
+# SafeDrive camera preprocessing recipe enabled for the BEV multi-view path:
+# undistort, crop 28 px from top and bottom, then resize.
+defaults:
+  - drivesuprim_agent_bevformer_vov_v2_vits_planonly_scratch
+  - _self_
+
+config:
+  ckpt_path: drivesuprim_bevformer_vov_v2_vits_planonly_scratch_safedrive_resize_ckpt
+  bev_undistort: true
+  bev_crop_top_bottom: 28

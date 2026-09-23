@@ -1,0 +1,5 @@
+# Preserve the exact driver/config/vocabulary used for the ep29 MPC search.
+# Its first 25 filesystem layers are identical to the locally submitted axe-v9.
+FROM alpasim-e2e-drivesuprim-stage3:epzero-ep29
+COPY stage3_merged_epoch29.ckpt /app/assets/drivesuprim/axe_nurec_vits.ckpt
+LABEL org.alpasim.checkpoint.sha256=2cf6ce8d9caf1f3a3c8bf4e21b943df6f4e94d9ff1618d08177fba7f4b833d93
