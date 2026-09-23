@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-23 21:23 KST (Claude Code)
+마지막 갱신: 2026-09-23 21:26 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -29,6 +29,7 @@
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- HANDOFF 7절에 GitHub 사본의 LFS 처리 방침(포인터만, clone 시 SKIP_SMUDGE) 추가.
 - AGENTS.md 종료 루틴에 `git push mine` 추가 (원격: GitHub JunSeongKW, deploy key `~/.ssh/id_ed25519_junseong*`, ssh 별칭 `github-junseong`, `github-junseong-safedrive`).
 - HANDOFF.md 7절(다른 서버에서 재구성) 추가.
 - tools/handoff-commit.sh 추가: 세션 종료를 한 명령으로(HANDOFF 시각 갱신 + 스테이징 + 커밋, junseong/* 브랜치만). AGENTS.md 종료 루틴이 이를 가리킨다.
@@ -64,3 +65,12 @@
 | 실행 결과 | `runs/<run>/aggregate/results-summary.json` | 요약 JSON 만 rsync 하면 충분 |
 
 git 으로 오는 것: 런처·드라이버 패키지·오버레이 코드·문서·실험 원장.
+
+### GitHub 사본(`mine`)과 Git LFS
+
+NVlabs 원본은 테스트 픽스처(usdz/asl/ply, 약 234 MB)를 LFS 로 관리한다. 개인 사본
+`JunSeongKW/alpasim-e2e-eval` 에는 LFS 객체를 올리지 않았다(포인터 파일만 있음). 따라서:
+
+- 다른 서버에서 받을 때: `GIT_LFS_SKIP_SMUDGE=1 git clone -b junseong/e2e-eval git@github-junseong:JunSeongKW/alpasim-e2e-eval.git alpasim`
+- 테스트 픽스처가 필요하면 원본을 두 번째 remote 로 두고 가져온다: `git remote add origin https://github.com/NVlabs/alpasim.git && git lfs fetch origin`
+- 첫 push 만 `--no-verify` 가 필요했다. 이후 커밋에는 LFS 파일이 없으므로 `git push mine` 그대로 된다.
