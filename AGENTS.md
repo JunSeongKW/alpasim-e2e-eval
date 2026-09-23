@@ -15,8 +15,9 @@ tail -n 3 runs/*.progress.log 2>/dev/null
 ## 세션 종료 루틴
 
 1. `HANDOFF.md` 의 1(실행 중)·2(결과)·3(변경)·4(다음)·5(미결) 절을 갱신한다.
-2. 커밋한다. 제목 한 줄(`[eval] …`, `[feature] …`, `[infra] …`), 본문에 원인·조치·결과 경로·다음 할 일.
-   실험을 띄운 커밋에는 `git tag run/<run-name>` 를 단다. 커밋은 `junseong/*` 브랜치에만 한다.
+2. 커밋한다: `tools/handoff-commit.sh "<에이전트 이름>" "[eval] 제목 한 줄"`. HANDOFF.md 3절(마지막 커밋 이후 바뀐 것)이
+   커밋 본문이 되므로 원인·조치·결과 경로·다음 할 일을 그 절에 먼저 적는다. 제목 접두어는 `[eval]` `[feature]` `[infra]`.
+   실험을 띄운 커밋에는 `git tag run/<run-name>` 를 단다. 커밋은 `junseong/*` 브랜치에만 한다(스크립트가 거부함).
 3. 장시간 작업은 nohup 으로 띄우고 진행 로그를 `runs/<run>.progress.log` 에 남긴다. 세션 임시 폴더에 두지 않는다.
 
 ## 바뀌지 않는 규칙
