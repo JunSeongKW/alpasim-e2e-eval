@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-23 21:03 KST (Claude Code)
+마지막 갱신: 2026-09-23 21:07 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -29,6 +29,7 @@
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- HANDOFF.md 7절(다른 서버에서 재구성) 추가.
 - tools/handoff-commit.sh 추가: 세션 종료를 한 명령으로(HANDOFF 시각 갱신 + 스테이징 + 커밋, junseong/* 브랜치만). AGENTS.md 종료 루틴이 이를 가리킨다.
 
 ## 4. 다음 단계
@@ -49,3 +50,16 @@
 - 데이터셋: `data/nre-artifacts -> /home/kaist5/Dataset/alpasim/data/nre-artifacts` (심볼릭 링크, 지우지 말 것).
 - 렌더러 공유 캐시: `.cache/renderer-shared/` (비면 `warm_renderer_cache.sh` 가 자동으로 채움).
 - 10클립 목록: `e2e_challenge/route_cache_filter/clips10.txt` (선정 근거 `clips10.md`).
+
+## 7. 다른 서버에서 재구성 (git 으로 오지 않는 것)
+
+| 항목 | 이 서버 위치 | 옮기는 방법 |
+|---|---|---|
+| 데이터셋 (NuRec 아티팩트, 장면) | `data/nre-artifacts -> /home/kaist5/Dataset/alpasim/data/nre-artifacts` | 대상 서버의 데이터 경로로 심볼릭 링크 재생성 |
+| 도커 이미지 | `alpasim-base:0.89.0`, `nvcr.io/nvidia/nre/nre-ga:26.04`, 드라이버 이미지 `alpasim-e2e-*` | 베이스는 pull, 드라이버 이미지는 `e2e_challenge/sample_submission_drivesuprim` 의 Dockerfile 로 재빌드(체크포인트는 ../models 에서) |
+| 체크포인트 | `../models/*.ckpt` | rsync |
+| 렌더러 공유 캐시 2.7 GB | `.cache/renderer-shared/` | rsync 하거나 첫 실행 때 `warm_renderer_cache.sh` 가 자동 생성 |
+| host venv | `.venv/` (uv) | `uv sync` (`UV_OFFLINE` 은 캐시가 생긴 뒤부터) |
+| 실행 결과 | `runs/<run>/aggregate/results-summary.json` | 요약 JSON 만 rsync 하면 충분 |
+
+git 으로 오는 것: 런처·드라이버 패키지·오버레이 코드·문서·실험 원장.
