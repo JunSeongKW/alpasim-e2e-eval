@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-23 21:26 KST (Claude Code)
+마지막 갱신: 2026-09-23 21:28 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -68,9 +68,11 @@ git 으로 오는 것: 런처·드라이버 패키지·오버레이 코드·문�
 
 ### GitHub 사본(`mine`)과 Git LFS
 
-NVlabs 원본은 테스트 픽스처(usdz/asl/ply, 약 234 MB)를 LFS 로 관리한다. 개인 사본
-`JunSeongKW/alpasim-e2e-eval` 에는 LFS 객체를 올리지 않았다(포인터 파일만 있음). 따라서:
+NVlabs 원본은 테스트 픽스처(usdz/asl/ply 등 20개, 약 225 MB)를 LFS 로 관리한다. GitHub 는
+LFS 포인터가 가리키는 객체가 없는 push 를 거부하므로(GH008), 개인 사본에는 LFS 객체까지
+올려 두었다(`git lfs fetch --all origin` 으로 NVlabs 에서 받은 뒤 `git lfs push --all mine`).
+무료 LFS 용량 1 GB 중 약 225 MB 를 쓴다.
 
-- 다른 서버에서 받을 때: `GIT_LFS_SKIP_SMUDGE=1 git clone -b junseong/e2e-eval git@github-junseong:JunSeongKW/alpasim-e2e-eval.git alpasim`
-- 테스트 픽스처가 필요하면 원본을 두 번째 remote 로 두고 가져온다: `git remote add origin https://github.com/NVlabs/alpasim.git && git lfs fetch origin`
-- 첫 push 만 `--no-verify` 가 필요했다. 이후 커밋에는 LFS 파일이 없으므로 `git push mine` 그대로 된다.
+- 다른 서버에서 받을 때 대역폭을 아끼려면: `GIT_LFS_SKIP_SMUDGE=1 git clone -b junseong/e2e-eval git@github-junseong:JunSeongKW/alpasim-e2e-eval.git alpasim`
+  (평가에는 픽스처가 필요 없다. pytest 를 돌릴 때만 `git lfs pull`.)
+- 이후 커밋에는 LFS 파일이 없으므로 종료 루틴의 `git push mine` 그대로 된다.
