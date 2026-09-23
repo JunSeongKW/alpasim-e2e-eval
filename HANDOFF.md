@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-23 21:07 KST (Claude Code)
+마지막 갱신: 2026-09-23 21:23 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -29,6 +29,7 @@
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- AGENTS.md 종료 루틴에 `git push mine` 추가 (원격: GitHub JunSeongKW, deploy key `~/.ssh/id_ed25519_junseong*`, ssh 별칭 `github-junseong`, `github-junseong-safedrive`).
 - HANDOFF.md 7절(다른 서버에서 재구성) 추가.
 - tools/handoff-commit.sh 추가: 세션 종료를 한 명령으로(HANDOFF 시각 갱신 + 스테이징 + 커밋, junseong/* 브랜치만). AGENTS.md 종료 루틴이 이를 가리킨다.
 
