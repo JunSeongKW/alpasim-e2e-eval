@@ -29,5 +29,7 @@
 | 2026-09-22 | routecache4-after | 10 | 10 | 0.2202 | 0.700 | 0.667 | |
 | 2026-09-23 | routecache-val441-center1s | 441 | 441 | 0.6598 | 0.263 | 0.099 | |
 | 2026-09-23 | routecache-val441-center1s-repair | 17 | 17 | 0.5902 | 0.294 | 0.176 | |
+| 2026-09-23 | rerank10-before | 10 | 10 | 0.2362 | 0.700 | 0.600 | 동일 이미지·설정 대조군. 점수·영상 생성 후 Docker 종료 오류로 wizard exit 1. |
+| 2026-09-23 | rerank10-rerank | 10 | 10 | 0.2324 | 0.700 | 0.500 | route 리랭커 ON; 선택 변경 1/1,896프레임. 상세 `route_reranker/RESULTS_10CLIPS.md`. |
 
-메모 채울 것: 체크포인트/이미지, GPU, 바꾼 변수 하나, 판정(기준선 대비). 실행 중: leaderboard-260923-ep29-step30330, rerank10-before, rerank10-rerank.
+메모 채울 것: 체크포인트/이미지, GPU, 바꾼 변수 하나, 판정(기준선 대비). 실행 중: leaderboard-260923-ep29-step30330. rerank10 두 arm 은 점수 생성 후 런처 정리 중.
