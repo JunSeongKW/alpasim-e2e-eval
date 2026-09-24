@@ -67,10 +67,16 @@ if [[ "${REUSE_DRIVERS:-0}" == 1 ]]; then
         gpu="${gpu//[[:space:]]/}"
         for ((r = 0; r < REPLICAS_PER_GPU; r++)); do
             n="${CONTAINER_PREFIX}-g${gpu}-${r}"
-            if docker ps --filter "name=^${n}$" --format '{{.Names}}' | grep -q . \
-                    && docker logs "$n" 2>&1 | grep -q "$READY_MARKER"; then
-                have=$((have + 1))
-            fi
+            # Three tries: under load `docker ps` has answered empty for a
+            # container that was up, and one empty answer sent a whole set of
+            # loaded drivers to `docker rm -f` for nothing.
+            for attempt in 1 2 3; do
+                if docker ps --filter "name=^${n}$" --format '{{.Names}}' | grep -q . \
+                        && docker logs "$n" 2>&1 | grep -q "$READY_MARKER"; then
+                    have=$((have + 1)); break
+                fi
+                sleep 5
+            done
             reuse_addrs+=("\"localhost:${p}\"")
             p=$((p + 1))
         done

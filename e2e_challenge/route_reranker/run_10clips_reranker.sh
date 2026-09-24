@@ -139,7 +139,7 @@ RENDERER_REPLICAS_PER_GPU="$REPLICAS" \
 NRE_CACHE_SIZE=1 \
 ENABLE_AUTORESUME="$([[ "$RESUME" == 1 ]] && echo true || echo false)" \
 SERVICE_STARTUP_TIMEOUT_SEC=1800 \
-RENDER_VIDEO=true \
+RENDER_VIDEO="${RENDER_VIDEO:-true}" \
 KEEP_ROLLOUTS=1 \
 MPC_OVERRIDES="controller.gains.long_position_weight=0.25 controller.gains.lat_position_weight=1.0 controller.gains.idx_start_penalty=3" \
 EXTRA_OVERRIDES="${VIDEO_OVERRIDES[*]}" \

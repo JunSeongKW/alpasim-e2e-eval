@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-24 12:01 KST (Claude Code)
+마지막 갱신: 2026-09-24 12:13 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -41,6 +41,8 @@
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- run_10clips_reranker.sh: RENDER_VIDEO 가 하드코딩 true 였음 → 환경변수 존중으로 수정(38클립 스윕 5 arm 이 영상 39개씩 렌더링했음; 441 전에 반드시 필요). start_drivers_reranker.sh: 재사용 조회 3회 재시도(도커 지연 시 빈 결과로 드라이버를 지우던 문제). 둘 다 임시파일+mv 로 교체해 실행 중 인스턴스에 영향 없음.
+- ② 재개 검증: 런타임 autoresume 은 장면별 `_complete` 개수만큼 빼고 배분(`simulate/__main__.py`). g0 arm: 16 건너뜀, 24 jobs. '완료분 재실행' 은 append 된 옛 로그를 잘못 읽은 것.
 - run_10clips_reranker.sh 에 RESUME/FULL_SET 스위치, decide_gamma.py, chain_validate_then_441.sh(nohup 체인). ① 클립별 표: 80도 이상 회전 실패는 γ≥0.02 에서 안정적으로 해결(2c263e19·98694f91·ddc3e8df), γ=0.1 은 멀쩡한 회전을 깸(e904e9c0 0.99→0), γ=0.01 은 중간 함정(dc1966f4 0.70→0), 직진 실패는 어느 γ 로도 안 풀림.
 - 리랭커: route 캐시 결합, 변형(centre/max), 시작 게이트·감시자, γ 스윕·검증·441 런처, 리포트 스크립트 일체. 세 차례 조용한 실패(64칸 초과, import 경로, 변수 범위) 수정.
 - 두 10클립 arm 의 런처 종료와 영상·요약 JSON을 확인하고, 남아 있던 Docker 컨테이너를 해당 실험 이름으로 한정해 정리했다. 21:48 기준 대상 컨테이너가 없다.
