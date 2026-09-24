@@ -50,6 +50,15 @@ RUN_TAG="${RUN_TAG:-rerank10}"
 RUN_DIR="$ROOT/runs/$RUN_TAG-$ARM"
 LOG="$HERE/10clips_${RUN_TAG}_${ARM}.log"
 CLIPS="${CLIPS:-$ROOT/e2e_challenge/route_cache_filter/clips10.txt}"
+# FULL_SET=1 evaluates the whole curated_val suite instead of a clip list --
+# the 441-clip run with the chosen gamma. SCENE_IDS_FILE is then left unset
+# and run_curated_val.sh keeps +nurec_scenes=curated_val as the scene source.
+FULL_SET="${FULL_SET:-0}"
+# RESUME=1 keeps an existing run directory and lets the runtime skip the
+# rollouts that carry a _complete marker. The validation sweep died at
+# 24/40 when the session that had launched it ended; three arms of 40
+# clips are an hour and a half, and two-thirds of it was already done.
+RESUME="${RESUME:-0}"
 GPUS="${GPUS:-0,1,2,3}"
 RENDER_GPUS="${RENDER_GPUS:-$GPUS}"
 REPLICAS="${REPLICAS:-1}"
@@ -75,7 +84,11 @@ VIDEO_OVERRIDES=(
 )
 
 log "=== arm=$ARM  rerank=$ROUTE_RERANK cache=$ROUTE_RERANK_CACHE agg=$ROUTE_RERANK_AGG centre_dx=$ROUTE_RERANK_CENTRE_DX gamma=$ROUTE_RERANK_WEIGHT  drivers on $GPUS, renderers on $RENDER_GPUS, ${ROLLOUT_WORKERS} workers, wizard ports from $WIZARD_BASEPORT ==="
-rm -rf "$RUN_DIR"
+if [[ "$RESUME" == 1 && -d "$RUN_DIR" ]]; then
+    log "resuming $RUN_DIR: $(find "$RUN_DIR/rollouts" -name _complete 2>/dev/null | wc -l) rollouts already complete"
+else
+    rm -rf "$RUN_DIR"
+fi
 
 PREFIX="axe-rr-$RUN_TAG-$ARM"
 addrs="$(IMAGE="$IMG" \
@@ -118,13 +131,13 @@ RUN_DIR="$RUN_DIR" \
 PRESET=dev \
 CONTESTANT_IMAGE="$IMG" \
 DRIVER_ADDRESSES="$addrs" \
-SCENE_IDS_FILE="$CLIPS" \
+SCENE_IDS_FILE="$([[ "$FULL_SET" == 1 ]] && echo "" || echo "$CLIPS")" \
 N_ROLLOUTS=1 \
 ROLLOUT_WORKERS="$ROLLOUT_WORKERS" \
 RENDER_GPUS_CSV="$RENDER_GPUS" \
 RENDERER_REPLICAS_PER_GPU="$REPLICAS" \
 NRE_CACHE_SIZE=1 \
-ENABLE_AUTORESUME=false \
+ENABLE_AUTORESUME="$([[ "$RESUME" == 1 ]] && echo true || echo false)" \
 SERVICE_STARTUP_TIMEOUT_SEC=1800 \
 RENDER_VIDEO=true \
 KEEP_ROLLOUTS=1 \

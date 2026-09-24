@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Measure the shortlisted gammas on a random slice of the 441 set, at the
-# 441 run's own concurrency, so the number that comes out IS the 441 estimate.
+# Measure the shortlisted gammas on a random slice of the 441 set: three arms
+# side by side, each at 8 drivers / 8 renderers / 8 workers.
 #
 # Why a second set. The 38-clip sweep is two-thirds corridor failures and its
 # controls are all clips scoring above 0.95. The 441 set is 9% corridor
@@ -10,15 +10,21 @@
 # a stratified random sample of the 441 by baseline score (9 zeros, 3 low, 4
 # mid, 24 high), so its mean tracks the full set's without any reweighting.
 #
-# Why sixteen of everything. gamma=0 run at four workers disagreed with the
-# 441 run on 8 of 38 clips -- same code, same checkpoint, only the concurrency
-# differed, which moves gRPC timing and flips clips near the 4 m boundary. The
-# 441 baseline was produced at 16 drivers / 16 renderers / 16 workers; running
-# the validation at the same contract makes leaderboard-merged-route-ep30 a
-# valid paired reference on these 40 clips and saves a separate baseline arm.
-# gamma=0 is still run once, as the cheapest possible proof that the mounted
-# code reproduces the baseline at this concurrency before six hours are spent
-# on the full set.
+# Why three arms at once, and why 8 rather than 16. The pipeline is not
+# GPU-bound: one worker per card left the cards 85% idle, because each step is
+# render -> inference -> controller -> physics in series and the card waits on
+# the CPU stages. Four workers per card is where utilisation saturates. Three
+# arms of 8 put six drivers and six renderers on each card (about 70 GB of
+# 81.5) and finish in roughly the time one arm of 16 would take alone. The
+# reference is the gamma=0 arm run in this same configuration, so the three
+# are paired with each other exactly; the 441 baseline is reported beside them
+# for scale only.
+#
+# gamma=0 is also the cheapest proof that the mounted code reproduces the
+# baseline before six hours are spent on the full set: on the 38-clip sweep the
+# same code disagreed with the 441 run on 8 clips, and whether that is
+# concurrency or plain run-to-run nondeterminism, its size on these 40 clips is
+# the noise floor every other gamma has to clear.
 #
 # Gammas are read from pick_gamma_candidates.py at launch, so this can be
 # chained behind the sweep without knowing the answer in advance.
@@ -38,21 +44,30 @@ else
 fi
 CLIPS="$HERE/clips_random40.txt"
 n_clips="$(grep -vc '^[[:space:]]*$' "$CLIPS")"
-log "=== validation set: $n_clips clips; gammas: ${GAMMAS[*]} ==="
+log "=== validation set: $n_clips clips; gammas: ${GAMMAS[*]}; 3 x (8/8/8) in parallel ==="
 
-for g in "${GAMMAS[@]}"; do
+pids=()
+for idx in "${!GAMMAS[@]}"; do
+    g="${GAMMAS[$idx]}"
     tag="g${g//./p}"
-    log "=== gamma=$g  ($n_clips clips, 16 drivers / 16 renderers / 16 workers) ==="
-    start=$(date +%s)
+    port=$((7300 + idx * 20))        # 8 driver ports per arm, well apart
+    wiz=$((19500 + idx * 100))       # ~21 service ports per arm
+    log "=== gamma=$g  (drivers on $port+, wizard from $wiz) ==="
     ARM=cache-centre-max RUN_TAG="val-$tag" \
     ROUTE_RERANK_WEIGHT="$g" \
-    CLIPS="$CLIPS" REPLICAS=4 ROLLOUT_WORKERS=16 WATCH_LIMIT=10 \
+    CLIPS="$CLIPS" REPLICAS=2 ROLLOUT_WORKERS=8 WATCH_LIMIT=10 \
     RENDER_VIDEO=false \
-    BASE_PORT=7300 WIZARD_BASEPORT=19500 GPUS=0,1,2,3 RENDER_GPUS=0,1,2,3 \
-        "$HERE/run_10clips_reranker.sh" > "$HERE/val_${tag}.nohup" 2>&1
-    d="$ROOT/runs/val-$tag-cache-centre-max"
-    log "gamma=$g done in $((($(date +%s) - start) / 60)) min;" \
-        "summary=$([[ -f $d/aggregate/results-summary.json ]] && echo yes || echo NO)"
-    "$HERE/gamma_validate_report.sh" 2>&1 | tee -a "$LOG"
+    BASE_PORT="$port" WIZARD_BASEPORT="$wiz" GPUS=0,1,2,3 RENDER_GPUS=0,1,2,3 \
+        "$HERE/run_10clips_reranker.sh" > "$HERE/val_${tag}.nohup" 2>&1 &
+    pids+=($!)
+    sleep 120                        # stagger: 16 containers per arm, disk-bound to create
 done
+start=$(date +%s)
+wait "${pids[@]}"
+log "=== all arms done in $((($(date +%s) - start) / 60)) min after the last launch ==="
+for g in "${GAMMAS[@]}"; do
+    d="$ROOT/runs/val-g${g//./p}-cache-centre-max"
+    log "gamma=$g summary=$([[ -f $d/aggregate/results-summary.json ]] && echo yes || echo NO)"
+done
+"$HERE/gamma_validate_report.sh" 2>&1 | tee -a "$LOG"
 log "=== validation done ==="

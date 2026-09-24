@@ -1,26 +1,25 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-24 10:36 KST (Claude Code)
+마지막 갱신: 2026-09-24 12:01 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-**γ 튜닝 파이프라인 (자동 체인, `e2e_challenge/route_reranker/`)** — 목표: 441 에서 최고 점수를 낼 γ 를 고른 뒤 그 γ 로 441 을 채점.
+**γ 튜닝 체인 — `e2e_challenge/route_reranker/chain_validate_then_441.sh` (nohup, 로그 `chain.log`)**
 
-| 단계 | 상태 | 확인 |
-|---|---|---|
-| ① 38클립 스윕 (실패군 26 + 대조군 12, γ = 0/0.01/0.02/0.05/0.1) | γ=0.01 만 진행 중 (11:05 예상) | `gamma_generalise_report.sh` |
-| ② 무작위 40클립 검증 (441 층화표본, 16/16/16 계약) γ = 0 + 상위 2개 | ① 종료 후 자동 시작, arm 당 ~55분 | `gamma_validate_report.sh`, `gamma_validate.log` |
-| ③ γ 확정 | 사람 판단 (Claude 가 ②표 보고 결정) | `pick_gamma_candidates.py --table` |
-| ④ 441 실행 (16/16/16, 영상 없음, ~6 h) | `GAMMA=<값> run_441_reranker.sh` | `runs/rr441-g<값>-cache-centre-max/` |
-| ⑤ axe-v9 441 과 짝지은 비교 | ④ 런처가 끝에서 자동 출력 | `441_g<값>.log` |
+| 단계 | 상태 |
+|---|---|
+| ① 38클립 스윕 5개 γ | 완료. `gamma_generalise_report.sh` |
+| ② 무작위 40클립 검증 (γ=0, 0.02, 0.05; 3 arm 병렬 8/8/8) | 11:54 세션 종료로 24/40 에서 중단 → 12:05 **재개**(RESUME=1, 드라이버 24개 재사용). `gamma_validate_report.sh` |
+| ③ γ 결정 | `decide_gamma.py --explain` (γ=0 arm 대비 짝지은 Δ 최대, 잡음 바닥 표시) |
+| ④ 441 (16/16/16, 영상 없음, ~6h) | ③ 직후 자동. `runs/rr441-g<γ>-cache-centre-max/`, 로그 `441_g<γ>.log` |
+| ⑤ axe-v9 비교 | ④ 런처가 끝에서 출력 |
 
-- 체인 프로세스: `run_gamma_generalise.sh` → (백그라운드 태스크) → `run_gamma_validate.sh`. 컨테이너 접두어 `axe-rr-gen-*`, `axe-rr-val-*`, compose `gen-g*`, `val-g*`.
-- **④ 전에 할 일**: `run_10clips_reranker.sh` 에 `FULL_SET=1` 스위치를 다시 넣는다(실행 중 인스턴스가 있어 되돌려 둠; 인스턴스가 없을 때만 편집). `run_441_reranker.sh` 는 그 스위치를 전제로 작성돼 있다.
-- GPU 0-3 사용 중(사용자 허가). 4-7 은 다른 연구원.
-- 정리 대기: `.trash-260923/` 2.2 GB.
+- **교훈**: 에이전트 세션의 백그라운드 태스크로 띄운 체인은 세션이 끝나면 죽는다(11:54 에 ② arm 3개·wizard·compose 스택 전부 소멸, 드라이버 컨테이너만 생존). 세션을 넘겨야 하는 것은 반드시 `nohup` 스크립트로. 이 체인은 그렇게 다시 띄웠다.
+- 컨테이너 접두어 `axe-rr-val-*`, `val-g*`, 이후 `axe-rr-rr441-*`, `rr441-g*`. 드라이버 포트 7300+/7400+, wizard 19500+/19700+.
+- GPU 0-3 사용 중(사용자 허가). 정리 대기: `.trash-260923/` 2.2 GB.
 
 ## 2. 최근 결과
 
@@ -42,6 +41,7 @@
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- run_10clips_reranker.sh 에 RESUME/FULL_SET 스위치, decide_gamma.py, chain_validate_then_441.sh(nohup 체인). ① 클립별 표: 80도 이상 회전 실패는 γ≥0.02 에서 안정적으로 해결(2c263e19·98694f91·ddc3e8df), γ=0.1 은 멀쩡한 회전을 깸(e904e9c0 0.99→0), γ=0.01 은 중간 함정(dc1966f4 0.70→0), 직진 실패는 어느 γ 로도 안 풀림.
 - 리랭커: route 캐시 결합, 변형(centre/max), 시작 게이트·감시자, γ 스윕·검증·441 런처, 리포트 스크립트 일체. 세 차례 조용한 실패(64칸 초과, import 경로, 변수 범위) 수정.
 - 두 10클립 arm 의 런처 종료와 영상·요약 JSON을 확인하고, 남아 있던 Docker 컨테이너를 해당 실험 이름으로 한정해 정리했다. 21:48 기준 대상 컨테이너가 없다.
 - `e2e_challenge/EXPERIMENTS.md`의 실행 상태 문구를 완료 상태로 고쳤다. 점수는 이전 커밋의 `route_reranker/RESULTS_10CLIPS.md`에 있다.
