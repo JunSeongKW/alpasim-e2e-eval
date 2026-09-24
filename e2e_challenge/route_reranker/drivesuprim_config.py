@@ -258,6 +258,13 @@ class DriveSuprimConfig(TransfuserConfig):
     route_rerank_min_overlap: float = 8.0
     route_rerank_deadband: float = 1.0
     route_rerank_max_distance: float = 8.0
+    # Variants of the bundle's cost, off by default (see rerank_variants.py).
+    # 'mean' is the bundle; 'max' matches the scorer, which fails a rollout on
+    # the WORST moment rather than the average one.
+    route_rerank_aggregate: str = 'mean'
+    # Forward offset from the vocab pose (rig origin) to the body centre, which
+    # is the point the scorer's corridor metric measures. 0.0 is the bundle.
+    route_rerank_centre_dx_m: float = 0.0
     route_hidden_dim: int = 64
     # Sinusoid bands on the route waypoint coordinates before the MLP. 0 feeds
     # the raw pair instead -- measured on ep19 weights that puts the 20 keys on

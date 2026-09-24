@@ -811,7 +811,9 @@ class DriveSuprimModel(nn.Module):
         if self.use_multi_stage:
             img_feat = img_feat_dict['patch_token']  # [bs, c_vit, w, h]
             final_traj = self._trajectory_offset_head(
-                img_feat, trajectory['refinement'], route=route, route_mask=route_mask)
+                img_feat, trajectory['refinement'], route=route, route_mask=route_mask,
+                rerank_route=features.get('rerank_route_feature'),
+                rerank_route_mask=features.get('rerank_route_mask'))
             trajectory['final_traj'] = final_traj
             # What the route reranker did on this forward, if it ran, so the
             # driver can log and export it. Absent (None) when disabled.
@@ -1467,7 +1469,8 @@ class RefineTrajHead(nn.Module):
                 dropout=0.0
             )
 
-    def forward(self, img_feat, refinement_dict, route=None, route_mask=None) -> Dict[str, torch.Tensor]:
+    def forward(self, img_feat, refinement_dict, route=None, route_mask=None,
+                rerank_route=None, rerank_route_mask=None) -> Dict[str, torch.Tensor]:
 
         B = img_feat.shape[0]
         
@@ -1602,10 +1605,18 @@ class RefineTrajHead(nn.Module):
                 self._last_route_rerank = None
                 if (getattr(self._config, 'route_rerank_enabled', False)
                         and not self._config.training and not self.training):
-                    from navsim.agents.drivesuprim.route_reranker import select_route_candidate
+                    from rerank_variants import select as _select_route
                     original_indices = select_indices
-                    select_indices, comparable, costs = select_route_candidate(
-                        scores, refinement_dict[-1]['trajs'], route, route_mask, None,
+                    if (rerank_route is None) != (rerank_route_mask is None):
+                        raise ValueError('Supply both rerank route coordinates and mask')
+                    # The accumulated route when the driver built one, the raw
+                    # 42-80 m message otherwise -- the bundle's own fallback.
+                    _route = route if rerank_route is None else rerank_route
+                    _mask = route_mask if rerank_route is None else rerank_route_mask
+                    select_indices, comparable, costs = _select_route(
+                        getattr(self._config, 'route_rerank_aggregate', 'mean'),
+                        float(getattr(self._config, 'route_rerank_centre_dx_m', 0.0)),
+                        scores, refinement_dict[-1]['trajs'], _route, _mask,
                         scale=self._config.route_norm_m,
                         weight=self._config.route_rerank_weight,
                         min_overlap=self._config.route_rerank_min_overlap,
@@ -1630,6 +1641,9 @@ class RefineTrajHead(nn.Module):
                         'score_selected': scores[rows, select_indices].detach(),
                         'original_traj': trajs[rows, original_indices].detach(),
                         'selected_traj': trajs[rows, select_indices].detach(),
+                        'route_points': torch.full_like(
+                            original_indices, int(_mask.sum().item()) if _mask is not None else 0),
+                        'cached': torch.full_like(original_indices, int(rerank_route is not None)),
                     }
                     counts = getattr(self, '_route_rerank_counts', [0, 0, 0])
                     counts[0] += B

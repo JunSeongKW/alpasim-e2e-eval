@@ -1,25 +1,37 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-23 21:49 KST (Codex)
+마지막 갱신: 2026-09-24 10:36 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-| 작업 | 시작 | 확인 방법 | 결과 위치 | 종료 예정 |
-|---|---|---|---|---|
-| ep29 체크포인트 441클립 평가 (GPU 0-3, 드라이버 16 / 렌더러 16) | 19:23 기동, 19:35 주행 시작 | `tail runs/leaderboard-260923-ep29-step30330.progress.log` | `runs/leaderboard-260923-ep29-step30330/aggregate/results-summary.json` | 01:30~02:00 |
+**γ 튜닝 파이프라인 (자동 체인, `e2e_challenge/route_reranker/`)** — 목표: 441 에서 최고 점수를 낼 γ 를 고른 뒤 그 γ 로 441 을 채점.
 
-- ep29 런처: `e2e_challenge/axe_local_eval/run_260923_ep29_step30330.sh` (nohup, 로그 `260923_ep29_attempt5.nohup.log`). 성공 시 rollout 원본을 스스로 지운다.
-- 10클립 런처: `e2e_challenge/route_reranker/run_10clips_reranker.sh` (`ARM=before|rerank`). 완료한 두 arm 비교:
-  `.venv/bin/python e2e_challenge/axe_local_eval/compare_on_clips.py before=runs/rerank10-before/aggregate/results-summary.json rerank=runs/rerank10-rerank/aggregate/results-summary.json`
-- ep29 드라이버 컨테이너: `axe-lb-260923-e29s30330-g*` (16). 시뮬 스택: compose 프로젝트 `leaderboard-260923-ep29-step30330`.
-- GPU 2 에는 junhyeok 의 `run_route_pilot.py` (17.7 GB) 가 함께 올라가 있다. 건드리지 않는다.
-- 21:48 기준 리랭커 두 arm 런처 종료, `axe-rr-rerank10-*`와 `rerank10-{before,rerank}-*` 컨테이너 0개 확인.
-- 정리 대기: `.trash-260923/` (2.2 GB, 복구 가능). ep29 평가가 끝난 뒤 삭제.
+| 단계 | 상태 | 확인 |
+|---|---|---|
+| ① 38클립 스윕 (실패군 26 + 대조군 12, γ = 0/0.01/0.02/0.05/0.1) | γ=0.01 만 진행 중 (11:05 예상) | `gamma_generalise_report.sh` |
+| ② 무작위 40클립 검증 (441 층화표본, 16/16/16 계약) γ = 0 + 상위 2개 | ① 종료 후 자동 시작, arm 당 ~55분 | `gamma_validate_report.sh`, `gamma_validate.log` |
+| ③ γ 확정 | 사람 판단 (Claude 가 ②표 보고 결정) | `pick_gamma_candidates.py --table` |
+| ④ 441 실행 (16/16/16, 영상 없음, ~6 h) | `GAMMA=<값> run_441_reranker.sh` | `runs/rr441-g<값>-cache-centre-max/` |
+| ⑤ axe-v9 441 과 짝지은 비교 | ④ 런처가 끝에서 자동 출력 | `441_g<값>.log` |
+
+- 체인 프로세스: `run_gamma_generalise.sh` → (백그라운드 태스크) → `run_gamma_validate.sh`. 컨테이너 접두어 `axe-rr-gen-*`, `axe-rr-val-*`, compose `gen-g*`, `val-g*`.
+- **④ 전에 할 일**: `run_10clips_reranker.sh` 에 `FULL_SET=1` 스위치를 다시 넣는다(실행 중 인스턴스가 있어 되돌려 둠; 인스턴스가 없을 때만 편집). `run_441_reranker.sh` 는 그 스위치를 전제로 작성돼 있다.
+- GPU 0-3 사용 중(사용자 허가). 4-7 은 다른 연구원.
+- 정리 대기: `.trash-260923/` 2.2 GB.
 
 ## 2. 최근 결과
+
+### γ 스윕 핵심 (2026-09-24)
+
+- 번들 원본(캐시 없음): 1,892프레임 중 교체 1건. 승자 적격 프레임 16.9%. 작동 조건 미충족.
+- 캐시+중심점+최댓값(cache-centre-max), 1클립(eaba3f6a): γ 0.0005→교체 0, 0.05→58건·점수 0→1.0.
+- 38클립(γ=0 짝지은 기준): 해결 0.02→5/26, 0.05→9/26, 0.1→11/26; 대조군 파손 0/1/2; 충돌 0.079→0.053/0.105/0.158.
+- **441 추정(실패 9.1% 가중)**: 0.02 +0.0097 > 0.05 +0.0047 > 0.1 +0.0028 — 38클립 순위와 반대. 대조군이 0.95+ 클립뿐이라 0점 클립 97개의 반응은 미측정 → ②검증셋의 존재 이유.
+- 시뮬레이터 비결정성: 같은 코드·체크포인트에서 워커 16→4 만으로 38클립 중 8개 판정이 뒤집힘. 비교는 반드시 같은 워커 수의 짝지은 기준선과.
+- ep29 441: 0.6886 vs axe-v9 0.6993 (at-fault 충돌 2배, 도로이탈 −1.6%p). 제출 후보 아님.
 
 - 기준선 axe-v9 (merged-route-ep30, 441클립): `runs/leaderboard-merged-route-ep30/aggregate/results-summary.json`.
 - route 캐시 corridor 필터 441 (중심점 판정): 음성 결과. `runs/routecache-val441-center1s/aggregate/`.
@@ -30,6 +42,7 @@
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- 리랭커: route 캐시 결합, 변형(centre/max), 시작 게이트·감시자, γ 스윕·검증·441 런처, 리포트 스크립트 일체. 세 차례 조용한 실패(64칸 초과, import 경로, 변수 범위) 수정.
 - 두 10클립 arm 의 런처 종료와 영상·요약 JSON을 확인하고, 남아 있던 Docker 컨테이너를 해당 실험 이름으로 한정해 정리했다. 21:48 기준 대상 컨테이너가 없다.
 - `e2e_challenge/EXPERIMENTS.md`의 실행 상태 문구를 완료 상태로 고쳤다. 점수는 이전 커밋의 `route_reranker/RESULTS_10CLIPS.md`에 있다.
 - ep29는 계속 평가 중이므로 `.trash-260923`와 rollout 원본을 그대로 둔다. 완료 후 441클립 기준선 비교가 다음 작업이다.

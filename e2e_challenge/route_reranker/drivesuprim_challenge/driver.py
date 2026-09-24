@@ -32,6 +32,7 @@ from vavam_challenge.rectification import (
     build_ftheta_rectifier_for_resolution,
 )
 
+from .route_cache import RouteCache
 from .cnx_bev_bridge import (
     CAMERA_HISTORY_OFFSETS_US,
     CAMERA_ORDER,
@@ -468,6 +469,11 @@ class SessionState:
     # The 20-slot route the policy was last given (rig frame, NaN padded), kept
     # so the debug payload can show what the reranker measured against.
     latest_route_waypoints: np.ndarray | None = None
+    # Accumulated route, for the reranker only. Route messages arrive in the rig
+    # frame of their own timestamp and the runtime fires them alongside the ego
+    # pose rather than after it, so a message is held until its pose lands.
+    route_cache: RouteCache = field(default_factory=RouteCache)
+    pending_routes: list = field(default_factory=list)
 
     latest_pose: common_pb2.PoseAtTime | None = None
 
@@ -574,6 +580,58 @@ def _route_waypoints_for_policy(
     for index, point in enumerate(route.waypoints[:count]):
         points[index] = (float(point.x), float(point.y), float(point.z))
     return points
+
+
+def _route_rerank_cache_enabled() -> bool:
+    """Feed the reranker the accumulated route instead of the raw 42-80 m window.
+
+    The runtime withholds everything nearer than 40 m, so the reranker's 8 m
+    projection-span gate almost never opens: measured over ten clips, 319 of
+    1,892 frames qualified and exactly one changed the selection. The stretch
+    IS delivered, just earlier -- what is 2 m ahead now was 42 m ahead forty
+    metres of driving ago -- so accumulating the messages in a frame that does
+    not move recovers the near field. The trained route ENCODER keeps receiving
+    the unchanged 20-slot message either way; only the reranker's geometry
+    changes, which is what keeps this to one variable.
+    """
+    return _env_flag("DRIVESUPRIM_ROUTE_RERANK_CACHE", default=False)
+
+
+# A route timestamp and an ego-pose timestamp for the same step are the same
+# number; anything further apart than half a control step is a different step.
+_ROUTE_POSE_TOLERANCE_US = 50_000
+
+
+def _resolve_pending_routes(session) -> None:
+    """Move route messages into the cache as soon as their pose is available.
+
+    A message whose pose never shows up is dropped rather than placed with the
+    wrong pose: a route put down at the wrong position corrupts the cache
+    permanently, while a dropped one costs a single 4 m increment of coverage.
+    """
+    if not session.pending_routes or not session.poses:
+        return
+
+    newest_pose_us = int(session.poses[-1].timestamp_us)
+    still_pending = []
+    for timestamp_us, waypoints in session.pending_routes:
+        pose = _nearest_pose(session.poses, timestamp_us)
+        offset = abs(int(pose.timestamp_us) - timestamp_us)
+        if offset <= _ROUTE_POSE_TOLERANCE_US:
+            session.route_cache.add(
+                waypoints,
+                float(pose.pose.vec.x),
+                float(pose.pose.vec.y),
+                _yaw(pose.pose.quat),
+            )
+        elif timestamp_us > newest_pose_us:
+            still_pending.append((timestamp_us, waypoints))   # pose not here yet
+        else:
+            LOGGER.warning(
+                "dropping route at %d: nearest ego pose is %d us away",
+                timestamp_us, offset,
+            )
+    session.pending_routes = still_pending
 
 
 def _use_navsim_2hz_history() -> bool:
@@ -1300,6 +1358,19 @@ class DriveSuprimChallengeDriver(
 
         with self._lock:
             session.latest_route = route
+            if _route_rerank_cache_enabled():
+                session.pending_routes.append(
+                    (
+                        int(route.timestamp_us),
+                        np.asarray(
+                            [
+                                (point.x, point.y, point.z)
+                                for point in route.waypoints
+                            ],
+                            dtype=np.float64,
+                        ).reshape(-1, 3),
+                    )
+                )
 
         return common_pb2.Empty()
 
@@ -1693,6 +1764,20 @@ class DriveSuprimChallengeDriver(
             route_waypoints = _route_waypoints_for_policy(session.latest_route)
             session.latest_route_waypoints = route_waypoints
 
+            # The reranker's own route. None until the cache has closed the gap
+            # to the ego, which is the only honest activation signal -- counting
+            # metres driven would guess at it.
+            rerank_route = None
+            if _route_rerank_cache_enabled() and anchor is not None:
+                _resolve_pending_routes(session)
+                ego_x = float(anchor.pose.vec.x)
+                ego_y = float(anchor.pose.vec.y)
+                ego_yaw = _yaw(anchor.pose.quat)
+                if session.route_cache.has_near_field(ego_x, ego_y, ego_yaw):
+                    rerank_route = session.route_cache.query_rig(
+                        ego_x, ego_y, ego_yaw
+                    )
+
         with self._inference_lock:
             try:
                 prediction = (
@@ -1700,6 +1785,7 @@ class DriveSuprimChallengeDriver(
                         cameras,
                         statuses,
                         route_waypoints=route_waypoints,
+                        rerank_route=rerank_route,
                         lidar2img_by_camera=(
                             lidar2img_by_camera
                         ),
@@ -2147,6 +2233,13 @@ def _prediction_debug_payload(
             None
             if session.latest_route_waypoints is None
             else np.asarray(session.latest_route_waypoints, dtype=np.float16)
+        ),
+        # The accumulated route the reranker actually measured against, in this
+        # step's rig frame. The video overlay draws it as the cached route.
+        "cached_route": (
+            None
+            if prediction.rerank_route is None
+            else np.asarray(prediction.rerank_route, dtype=np.float16)
         ),
     }
 

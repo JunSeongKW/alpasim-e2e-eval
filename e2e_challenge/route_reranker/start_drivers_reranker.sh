@@ -26,11 +26,22 @@ MODEL_PY="${MODEL_PY:-$HERE/drivesuprim_model.py}"
 CONFIG_PY="${CONFIG_PY:-$HERE/drivesuprim_config.py}"
 RERANKER_PY="${RERANKER_PY:-$HERE/route_reranker.py}"
 ROUTE_INPUTS_PY="${ROUTE_INPUTS_PY:-$HERE/route_inputs.py}"
+VARIANTS_PY="${VARIANTS_PY:-$HERE/rerank_variants.py}"
+# The agent copies features into per-forward dicts by an explicit whitelist,
+# so the reranker route has to be named there or it never reaches the model.
+AGENT_PY="${AGENT_PY:-$HERE/drivesuprim_agent.py}"
 
 ROUTE_RERANK="${ROUTE_RERANK:-0}"
 ROUTE_RERANK_WEIGHT="${ROUTE_RERANK_WEIGHT:-0.0005}"
+# Accumulate the route so the reranker sees the near field (0 = the raw
+# 42-80 m window the runtime sends, which is what the first run used).
+ROUTE_RERANK_CACHE="${ROUTE_RERANK_CACHE:-0}"
+# mean = the bundle; max = the worst-moment rule the scorer applies.
+ROUTE_RERANK_AGG="${ROUTE_RERANK_AGG:-mean}"
+# 0.0 = measure from the vocab pose (the bundle); 1.467 = the body centre.
+ROUTE_RERANK_CENTRE_DX="${ROUTE_RERANK_CENTRE_DX:-0.0}"
 
-for f in "$DRIVER_PKG/driver.py" "$MODEL_PY" "$CONFIG_PY" "$RERANKER_PY" "$ROUTE_INPUTS_PY"; do
+for f in "$DRIVER_PKG/driver.py" "$MODEL_PY" "$CONFIG_PY" "$RERANKER_PY" "$ROUTE_INPUTS_PY" "$VARIANTS_PY" "$AGENT_PY"; do
     [[ -f "$f" ]] || { echo "ERROR: missing $f" >&2; exit 2; }
 done
 
@@ -97,6 +108,8 @@ for gpu in "${gpu_indices[@]}"; do
             -v "${CONFIG_PY}:/app/navsim/agents/drivesuprim/drivesuprim_config.py:ro" \
             -v "${RERANKER_PY}:/app/navsim/agents/drivesuprim/route_reranker.py:ro" \
             -v "${ROUTE_INPUTS_PY}:/app/navsim/agents/drivesuprim/route_inputs.py:ro" \
+            -v "${VARIANTS_PY}:/app/rerank_variants.py:ro" \
+            -v "${AGENT_PY}:/app/navsim/agents/drivesuprim/drivesuprim_agent.py:ro" \
             -p "127.0.0.1:${port}:${CONTAINER_PORT}" \
             -e "ALPASIM_DRIVER_HOST=0.0.0.0" \
             -e "ALPASIM_DRIVER_PORT=${CONTAINER_PORT}" \
@@ -105,6 +118,9 @@ for gpu in "${gpu_indices[@]}"; do
             -e "PYTHONDONTWRITEBYTECODE=1" \
             -e "DRIVESUPRIM_ROUTE_RERANK=${ROUTE_RERANK}" \
             -e "DRIVESUPRIM_ROUTE_RERANK_WEIGHT=${ROUTE_RERANK_WEIGHT}" \
+            -e "DRIVESUPRIM_ROUTE_RERANK_CACHE=${ROUTE_RERANK_CACHE}" \
+            -e "DRIVESUPRIM_ROUTE_RERANK_AGG=${ROUTE_RERANK_AGG}" \
+            -e "DRIVESUPRIM_ROUTE_RERANK_CENTRE_DX=${ROUTE_RERANK_CENTRE_DX}" \
             "$IMAGE" >/dev/null
         ports+=("$port"); names+=("$name")
         port=$((port + 1))
@@ -112,7 +128,7 @@ for gpu in "${gpu_indices[@]}"; do
 done
 
 echo "started ${#names[@]} driver replicas on GPUs ${GPU_INDICES_CSV}" \
-     "(route_rerank=${ROUTE_RERANK}, weight=${ROUTE_RERANK_WEIGHT})" >&2
+     "(route_rerank=${ROUTE_RERANK}, weight=${ROUTE_RERANK_WEIGHT}," "cache=${ROUTE_RERANK_CACHE}, agg=${ROUTE_RERANK_AGG}," "centre_dx=${ROUTE_RERANK_CENTRE_DX})" >&2
 
 deadline=$(( $(date +%s) + READY_TIMEOUT_SEC ))
 for i in "${!names[@]}"; do

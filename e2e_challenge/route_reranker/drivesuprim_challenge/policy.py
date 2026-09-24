@@ -48,6 +48,10 @@ class DriveSuprimPrediction:
     # What the route reranker did on this frame (None when disabled): indices,
     # costs and both trajectories, so the decision can be drawn and audited.
     route_rerank: dict | None = None
+    # The accumulated route the reranker measured against (rig frame), for the
+    # debug payload and the video overlay. None when the cache is off or has not
+    # closed the near-field gap yet.
+    rerank_route: np.ndarray | None = None
 
 
 def _apply_config_overrides(
@@ -268,12 +272,22 @@ class DriveSuprimPolicy:
         config.route_rerank_weight = float(
             os.environ.get("DRIVESUPRIM_ROUTE_RERANK_WEIGHT", "0.0005")
         )
+        # Variants. Defaults reproduce the bundle exactly.
+        config.route_rerank_aggregate = os.environ.get(
+            "DRIVESUPRIM_ROUTE_RERANK_AGG", "mean"
+        )
+        config.route_rerank_centre_dx_m = float(
+            os.environ.get("DRIVESUPRIM_ROUTE_RERANK_CENTRE_DX", "0.0")
+        )
         print(
             "[DriveSuprim] ROUTE RERANK:"
             f" enabled={config.route_rerank_enabled}"
             f" weight={config.route_rerank_weight}"
             f" min_overlap_m={getattr(config, 'route_rerank_min_overlap', None)}"
-            f" route_norm_m={getattr(config, 'route_norm_m', None)}",
+            f" route_norm_m={getattr(config, 'route_norm_m', None)}"
+            f" aggregate={config.route_rerank_aggregate}"
+            f" centre_dx_m={config.route_rerank_centre_dx_m}"
+            f" cache={os.environ.get('DRIVESUPRIM_ROUTE_RERANK_CACHE', '0')}",
             flush=True,
         )
 
@@ -475,6 +489,7 @@ class DriveSuprimPolicy:
         ],
         *,
         route_waypoints: np.ndarray | None = None,
+        rerank_route: np.ndarray | None = None,
         lidar2img_by_camera: (
             Mapping[str, np.ndarray]
             | None
@@ -502,6 +517,7 @@ class DriveSuprimPolicy:
                 camera_history,
                 status_history,
                 route_waypoints=route_waypoints,
+                rerank_route=rerank_route,
                 lidar2img_by_camera=(
                     lidar2img_by_camera
                 ),
@@ -626,6 +642,7 @@ class DriveSuprimPolicy:
         status_history,
         *,
         route_waypoints,
+        rerank_route=None,
         lidar2img_by_camera,
         bev_ego_pose,
         debug_context,
@@ -888,6 +905,50 @@ class DriveSuprimPolicy:
                 dtype=torch.float32,
                 device=self._device,
             ).unsqueeze(0)
+
+        # The reranker's geometry, kept apart from the trained encoder's input.
+        # `split_route_inputs` is the bundle's own adapter: it hands the encoder
+        # the canonical 42-80 m slots and the reranker every point it was given,
+        # in a 64-slot array. With the cache off this is never reached and the
+        # reranker falls back to the 20-slot message, which is what the first
+        # comparison ran.
+        # The session uuid is only an argument of the predict call, and the
+        # method that formats the per-frame log is a separate one, so stash it
+        # here. Reading it off the argument there raised NameError on every
+        # frame; the watchdog aborted the arm, which is what it is for.
+        self._debug_context = debug_context
+        self._rerank_route = None
+        if rerank_route is not None and len(rerank_route) >= 2:
+            from navsim.agents.drivesuprim.route_inputs import split_route_inputs
+            points = _resample_route(
+                np.asarray(rerank_route, dtype=np.float32)[:, :2]
+            )
+            norm = float(getattr(self._config, "route_norm_m", 80.0))
+            _, full = split_route_inputs(points)
+            full_mask = np.isfinite(full).all(-1)
+            features["rerank_route_feature"] = torch.as_tensor(
+                np.where(full_mask[:, None], np.nan_to_num(full) / norm, 0).astype(np.float32),
+                dtype=torch.float32, device=self._device,
+            ).unsqueeze(0)
+            features["rerank_route_mask"] = torch.as_tensor(
+                full_mask.astype(np.float32),
+                dtype=torch.float32, device=self._device,
+            ).unsqueeze(0)
+            self._rerank_route = points
+            # How much the route ahead turns, in degrees. Nothing in the run
+            # directory says whether a clip is a turn, and the scene artifacts do
+            # not carry it either, so record it here: the route the ego is being
+            # measured against IS the turn. Classifying afterwards from this beats
+            # hand-labelling, and it is the same geometry the cost is computed on.
+            ahead = points[points[:, 0] >= 0.0]
+            if len(ahead) >= 3:
+                d = np.diff(ahead, axis=0)
+                ang = np.degrees(np.arctan2(d[:, 1], d[:, 0]))
+                self._route_turn_deg = float(
+                    np.abs((ang[-1] - ang[0] + 180.0) % 360.0 - 180.0)
+                )
+            else:
+                self._route_turn_deg = 0.0
 
         print(
             "[DriveSuprim] BEV INPUT:"
@@ -1162,10 +1223,19 @@ class DriveSuprimPolicy:
                 f" winner_eligible={route_rerank['comparable_original']}"
                 f" orig=#{route_rerank['original_index']}"
                 f" (score={route_rerank['score_original']:.4f}"
-                f" meanL2={route_rerank['cost_original']:.2f}m)"
+                f" cost={route_rerank['cost_original']:.2f}m)"
                 f" sel=#{route_rerank['selected_index']}"
                 f" (score={route_rerank['score_selected']:.4f}"
-                f" meanL2={route_rerank['cost_selected']:.2f}m)",
+                f" cost={route_rerank['cost_selected']:.2f}m)"
+                f" route_pts={route_rerank.get('route_points', 0)}"
+                f" cached={route_rerank.get('cached', 0)}"
+                f" route_turn_deg={getattr(self, '_route_turn_deg', 0.0):.1f}"
+                # The clip is not knowable here -- the driver only ever sees a
+                # session uuid -- but the runtime worker log pairs that uuid with
+                # the clip, so printing it is what lets a frame be attributed to
+                # a scene afterwards. Without it every route_turn_deg in the log
+                # is unattributable and the turn/straight split cannot be made.
+                f" session={getattr(self, '_debug_context', '')[:8]}",
                 flush=True,
             )
 
@@ -1173,6 +1243,7 @@ class DriveSuprimPolicy:
             poses=poses,
             candidate_vocab=candidate_vocab,
             route_rerank=route_rerank,
+            rerank_route=getattr(self, "_rerank_route", None),
             feasibility_mask=feasibility_mask,
             feasibility_drivable_mask=feas_drivable,
             feasibility_collision_mask=feas_collision,
@@ -1893,6 +1964,41 @@ def _rank_debug_line(stats: dict, selected: int, total: np.ndarray, count: int) 
         f"total={float(total[selected]):+.4f} | " + " ".join(parts)
         + f" | flip={flips or '-'}"
     )
+
+
+# The reranker channel is 64 slots and `split_route_inputs` raises rather than
+# truncating, which is the right call -- a silently clipped route would measure
+# candidates against a route that stops early. The accumulated route outgrows
+# that: it splices one message per step, so its near field carries a point every
+# half metre instead of every 4.2 m, and a 110 m window reached 64 points after
+# about a minute of driving and then threw on every frame.
+#
+# Resampling by arclength is the fix rather than a wider window: the geometry is
+# unchanged, and 4.2 m is the spacing the runtime itself publishes, so the
+# reranker measures against a polyline of the same density it was designed for.
+# The spacing only coarsens if a window ever needs more than 63 points at that
+# density, which keeps the guarantee that the result fits.
+ROUTE_RESAMPLE_SPACING_M = 80.0 / 19.0
+ROUTE_RESAMPLE_MAX_POINTS = 63
+
+
+def _resample_route(points: np.ndarray) -> np.ndarray:
+    """Uniform-arclength resample of an ordered polyline, to at most 63 points."""
+    points = np.asarray(points, dtype=np.float32)
+    if len(points) < 2:
+        return points
+    step = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    arc = np.concatenate([[0.0], np.cumsum(step)])
+    total = float(arc[-1])
+    if total <= 1e-6:
+        return points[:1]
+    spacing = max(ROUTE_RESAMPLE_SPACING_M, total / ROUTE_RESAMPLE_MAX_POINTS)
+    targets = np.arange(0.0, total + 1e-6, spacing, dtype=np.float64)
+    if len(targets) > ROUTE_RESAMPLE_MAX_POINTS:
+        targets = targets[:ROUTE_RESAMPLE_MAX_POINTS]
+    return np.stack(
+        [np.interp(targets, arc, points[:, axis]) for axis in range(2)], axis=1
+    ).astype(np.float32)
 
 
 def _prepare_route_features(
