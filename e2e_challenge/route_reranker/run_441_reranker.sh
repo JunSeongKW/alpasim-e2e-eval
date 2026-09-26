@@ -20,7 +20,14 @@ HERE="$ROOT/e2e_challenge/route_reranker"
 cd "$ROOT"
 GAMMA="${GAMMA:?set GAMMA, e.g. GAMMA=0.02}"
 GPUS="${GPUS:-0,1,2,3}"
-tag="g${GAMMA//./p}"
+# Which weights. The default is the axe-v9 submission image; a different
+# checkpoint is evaluated by building the same overlay on the same base
+# (Dockerfile.checkpoint_overlay) and naming it here, so the only thing
+# that moves between two runs is the weights.
+IMG="${IMG:-alpasim-e2e-drivesuprim-stage3:merged-route-ep30}"
+CKPT_SHA="${CKPT_SHA:-364c801e397e9d6e36ea1f9027dc4ca804ad2e429bb588cf4e84185ca851de3d}"
+TAG_SUFFIX="${TAG_SUFFIX:-}"
+tag="g${GAMMA//./p}${TAG_SUFFIX}"
 RUN_TAG="rr441-$tag"
 RUN_DIR="$ROOT/runs/$RUN_TAG-cache-centre-max"
 LOG="$HERE/441_${tag}.log"
@@ -35,8 +42,8 @@ done
 
 cat > "$RUN_DIR.provenance.json" <<EOF
 {
-  "image": "alpasim-e2e-drivesuprim-stage3:merged-route-ep30",
-  "checkpoint_sha256": "364c801e397e9d6e36ea1f9027dc4ca804ad2e429bb588cf4e84185ca851de3d",
+  "image": "$IMG",
+  "checkpoint_sha256": "$CKPT_SHA",
   "baseline_run": "runs/leaderboard-merged-route-ep30",
   "arm": "cache-centre-max",
   "gamma": $GAMMA,
@@ -53,6 +60,7 @@ start=$(date +%s)
 # set is expressed by passing the curated_val suite through: an empty
 # SCENE_IDS_FILE makes run_curated_val.sh keep +nurec_scenes=curated_val.
 ARM=cache-centre-max RUN_TAG="$RUN_TAG" \
+IMG="$IMG" EXPECTED_CHECKPOINT_SHA256="$CKPT_SHA" \
 ROUTE_RERANK_WEIGHT="$GAMMA" \
 CLIPS="" FULL_SET=1 REPLICAS=4 ROLLOUT_WORKERS=16 WATCH_LIMIT=20 \
 RENDER_VIDEO=false \
