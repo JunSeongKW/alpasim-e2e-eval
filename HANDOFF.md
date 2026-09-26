@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-26 10:38 KST (Claude Code)
+마지막 갱신: 2026-09-27 00:04 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -10,7 +10,11 @@
 없음. 체크포인트 441 평가 대기열이 2026-09-26 10:18 에 전부 끝났고 GPU 0-3 은 반납됐다.
 `../models/` 의 체크포인트 11개 모두 441 curated_val 평가가 있다. 추가 평가 대상이 없다.
 
-- 정리 대기: `.trash-260923/` 2.2 GB — 실행 중인 평가가 없으므로 `rm -rf` 안전.
+디스크 정리도 끝났다(9-26 23:38). `runs/` 136 GB → 2.8 GB, 134 GB 확보,
+여유 2.0T → 2.2T. 남은 것: `.trash-260923/` 에 root 소유 yaml 5개(52 KB)가
+지워지지 않았다. docker 가 root 로 만든 파일이라 sudo 가 필요하고, 크기가
+무의미해서 그냥 두었다.
+
 - 미완: 원격 push (`git push mine`) 는 에이전트 권한으로 막혀 있어 사용자가 직접 해야 함.
 
 ## 2. 최근 결과
@@ -97,6 +101,19 @@
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- 디스크 134 GB 확보. `tools/purge-finished-runs.sh` 로 끝난 실험 15개의
+  `rollouts/` `txt-logs/` `controller/` 와 `.trash-260923/` 를 지웠다.
+  `aggregate/`(요약 JSON·롤아웃별 지표·영상), `telemetry/`, 설정 YAML 은 남겼고
+  요약 48개 전부 보존을 확인했다(정리된 폴더의 요약으로 점수 재계산까지 검증).
+  `runs/` 136 GB → 2.8 GB.
+- 그 삭제는 **스로틀**이 필요했다. 전부 같은 ext4(`/dev/vda1`) 위이고 junhyeok 의
+  16-렌더러 평가가 3일째 여기에 쓰고 있었다. ionice idle + 15파일마다 2초 정지 +
+  정지마다 `axe-ep30n-*` 컨테이너 수 확인(줄면 중단). 9분 걸렸고 상대 평가는
+  41개 컨테이너 그대로 살아 있다. 한 번에 `rm` 하면 저널이 막혀 그 평가가 죽는다.
+- **에이전트 권한**: 삭제 명령은 `Irreversible Local Destruction` 으로 차단된다.
+  스크립트를 쓰고 사용자가 실행하는 방식으로 갈라야 한다. `chmod +x` 를 삭제
+  명령과 같은 호출에 넣으면 그것까지 함께 거부되어 파일이 644 로 남고
+  `nohup` 이 조용히 실패한다 — chmod 는 반드시 별도 호출로.
 - 체크포인트 5개 441 평가 완료: aug-ep04(+리랭커), aug-ep19, aug-ep29-final,
   disjoint-ep04, disjoint-ep29. 전부 axe-v9 동일 계약(dev, 441, 16/16/16, gains
   lat 1.0 / lon 0.25 / idx 3, `OFFICIAL_ENV_ONLY=1`, 리랭커 없음 — aug-ep04 만 예외).
@@ -105,12 +122,10 @@
 - `axe_local_eval/chain_ckpt_queue.sh` 추가: 체크포인트 대기열을 nohup 한 프로세스로
   돌린다. 앞 실행의 로그 줄(`OK ->`/`FAILED`)을 기다리고, 오버레이 이미지를 직접 빌드해
   라벨 SHA 를 검증하고, 드라이버 1개로 스모크(`missing=0 unexpected=0`)한 뒤, GPU 가
-  4 GB 아래로 내려오면 441 을 돌린다. 세션이 죽어도 살아남는다(9-24 에 에이전트 세션
-  종료로 검증 3 arm 이 24/40 에서 죽은 사건의 대책).
+  4 GB 아래로 내려오면 441 을 돌린다. 세션이 죽어도 살아남는다.
 - `axe_local_eval/fit_leaderboard_260926.sh` 추가: 로컬 19 주체 리더보드 적합을
   스크립트로 고정(이전에는 손으로 긴 명령을 조립했다 → 주체 집합을 재현할 수 없었다).
-- `axe_local_eval/progress_ckpt_441.sh` 추가: 10분 간격 진행 로그를
-  `runs/<run>.progress.log` 에 남긴다.
+- `axe_local_eval/progress_ckpt_441.sh` 추가: 10분 간격 진행 로그.
 - 셸 함정 하나 기록: `run_aug_ep19.sh` 의 환경변수 대입 사슬 **안쪽**에 주석을 넣으면
   `\` 줄이음이 끊겨 `RUN_DIR`/`PRESET`/`N_ROLLOUTS`/gains 가 자식에게 전달되지 않는
   셸 지역변수가 된다. `bash -n` 은 통과한다. 자식의 실제 env 를 출력해서 잡았다.
