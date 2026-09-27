@@ -40,5 +40,6 @@
 | 2026-09-26 | leaderboard-aug-ep29-final | 441 | 441 | 0.6951 | 0.211 | 0.077 | stage3_aug_ep29_final. axe-v9 −0.0042 로 사실상 동급, 0점률·corridor·GT오차는 우위. at-fault 0.061 이 PCS 10위로 끌어내림 |
 | 2026-09-26 | leaderboard-disjoint-ep04 | 441 | 441 | 0.6328 | 0.265 | 0.122 | stage3_disjoint_ep04. 같은 epoch 의 aug 보다 +0.20 높음(aug-ep04 는 리랭커 포함 0.4308) |
 | 2026-09-26 | leaderboard-disjoint-ep29 | 441 | 441 | 0.6526 | 0.231 | 0.091 | stage3_disjoint_ep29. ep04→ep29 개선폭 +0.020 뿐, aug 계열(+0.26)과 대비. disjoint 가 수렴을 일찍 멈춤 |
+| 2026-09-27 | rr441-g0p02-disjointep04-cache-centre-max | 441 | 441 | 0.6472 | 0.252 | 0.125 | stage3_disjoint_ep04 + 리랭커 γ=0.02. 리랭커 없는 같은 체크포인트 대비 +0.0144(axe-v9 에서는 +0.0305). 개선 56 / 악화 59 클립 — 건수로는 지고 폭으로 이김. corridor 이탈은 오히려 증가(0.122→0.125) |
 
-메모 채울 것: 체크포인트/이미지, GPU, 바꾼 변수 하나, 판정(기준선 대비). 실행 중: 없음(2026-09-26 10:18 체크포인트 대기열 종료). `../models/` 의 11개 체크포인트 전부 441 평가 완료. 통합 리더보드: `runs/leaderboard-260926/capability_ranking.csv` (로컬 19 + 참조 8 주체 동시 적합).
+메모 채울 것: 체크포인트/이미지, GPU, 바꾼 변수 하나, 판정(기준선 대비). 실행 중: 없음(2026-09-26 10:18 체크포인트 대기열 종료). `../models/` 의 11개 체크포인트 전부 441 평가 완료. 통합 리더보드: `runs/leaderboard-260927/capability_ranking.csv` (로컬 20 + 참조 8 주체 동시 적합, 경고 없음).
