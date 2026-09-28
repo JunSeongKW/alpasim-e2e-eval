@@ -22,14 +22,69 @@ classes are the same five used before; widening that set would change near_mean
 and mindist for every clip and break comparability with the 1606 file.
 
 Usage:
-    python scan_scene_attrs.py --paths usdz441.json --out pool441.json
+    python scan_scene_attrs.py --summary runs/<run>/aggregate/results-summary.json \
+        --out data/pool441.json
 """
 import argparse
+import csv
+import glob
 import json
+import os
+import pathlib
 import zipfile
 
 import numpy as np
 import yaml
+
+_ROOT = pathlib.Path(__file__).resolve().parents[2]
+SCENE_CSVS = ("data/scenes/sim_scenes.csv", "data/scenes/sim_scenes_2604.csv")
+HF_SNAPSHOTS = (
+    "/home/kaist5/.cache/huggingface/hub/"
+    "datasets--nvidia--PhysicalAI-Autonomous-Vehicles-NuRec/snapshots/*"
+)
+USDZ_LINK_DIR = "/home/kaist5/Dataset/alpasim/data/nre-artifacts/all-usdzs"
+
+
+def resolve_paths(summary_path: str) -> dict[str, str]:
+    """clip_id -> .usdz path, for every clip a run scored.
+
+    A .usdz file name is not always the scene id -- 2 of the 441 are not -- so
+    the scene tables are the authority and the flat symlink directory is only a
+    fallback. Together they resolve all 441; either alone does not.
+    """
+    clips = {
+        r["clipgt_id"]
+        for r in json.load(open(summary_path))["rollouts"]
+    }
+    table: dict[str, list[dict]] = {}
+    for name in SCENE_CSVS:
+        for row in csv.DictReader(open(_ROOT / name)):
+            table.setdefault(row["scene_id"], []).append(row)
+
+    snapshots = glob.glob(HF_SNAPSHOTS)
+    out, missing = {}, []
+    for clip in sorted(clips):
+        bare = clip.replace("clipgt-", "")
+        found = None
+        for row in table.get(clip, []):
+            for snap in snapshots:
+                candidate = os.path.join(snap, row["path"])
+                if os.path.exists(candidate):
+                    found = candidate
+                    break
+            if found:
+                break
+        if not found:
+            link = os.path.join(USDZ_LINK_DIR, f"{bare}.usdz")
+            if os.path.exists(link):
+                found = os.path.realpath(link)
+        if found:
+            out[bare] = found
+        else:
+            missing.append(bare)
+    if missing:
+        print(f"WARNING: no .usdz for {len(missing)} clips: {missing[:5]}")
+    return out
 
 VEHICLE_CLASSES = {"automobile", "heavy_truck", "bus", "other_vehicle", "trailer"}
 NEAR_RADIUS_M = 30.0
@@ -122,11 +177,14 @@ def scan(path: str) -> dict | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--paths", required=True, help="JSON: clip_id -> .usdz path")
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--summary", help="results-summary.json; paths are resolved from it")
+    g.add_argument("--paths", help="JSON: clip_id -> .usdz path, if already resolved")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
-    paths = json.load(open(a.paths))
+    paths = json.load(open(a.paths)) if a.paths else resolve_paths(a.summary)
+    print(f"{len(paths)} scenes to scan")
     out, failed = {}, []
     for i, (cid, path) in enumerate(sorted(paths.items()), 1):
         try:
