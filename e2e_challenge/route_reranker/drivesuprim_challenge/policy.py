@@ -291,6 +291,39 @@ class DriveSuprimPolicy:
             flush=True,
         )
 
+        # Collision-gate knobs, overridable per run so a sweep does not need a
+        # new image for every combination. Each default is read off the config
+        # that is already loaded, so a container started without these variables
+        # behaves exactly as before -- that is what keeps a gate sweep from
+        # disturbing runs (such as a gamma ladder) that must stay comparable.
+        #
+        # Only three of the gate's knobs are worth sweeping. The fourth,
+        # feasibility_predict_horizon, cannot do anything here: the aux agent
+        # head emits the 5-field TransFuser box (x, y, heading, length, width)
+        # with no velocity, so `use_cv` is False and every pose is tested
+        # against agents frozen at their current position regardless of the
+        # horizon. Propagating agents would need the 10-field box, which is a
+        # retraining question, not a setting.
+        for env_name, attr, cast in (
+            ("DRIVESUPRIM_FEAS_COLLISION_MARGIN", "feasibility_collision_margin", float),
+            ("DRIVESUPRIM_FEAS_COLLISION_SCALE", "feasibility_collision_scale", float),
+            ("DRIVESUPRIM_FEAS_AGENT_CONF", "feasibility_agent_conf_thresh", float),
+        ):
+            raw = os.environ.get(env_name)
+            if raw is not None and raw != "":
+                setattr(config, attr, cast(raw))
+        print(
+            "[DriveSuprim] FEAS GATE:"
+            f" collision={getattr(config, 'feasibility_collision', None)}"
+            f" drivable={getattr(config, 'feasibility_drivable', None)}"
+            f" margin_m={getattr(config, 'feasibility_collision_margin', None)}"
+            f" box_scale={getattr(config, 'feasibility_collision_scale', None)}"
+            f" agent_conf={getattr(config, 'feasibility_agent_conf_thresh', None)}"
+            f" horizon_s={getattr(config, 'feasibility_predict_horizon', None)}"
+            " (horizon inert: 5-field agent box carries no velocity)",
+            flush=True,
+        )
+
         # R50 stage3 is a BEVFormer model whose image encoder is ResNet-50.
         # Keep a distinct external alias for checkpoint validation, then use
         # the BEVFormer runtime path after the resolved config is applied.
