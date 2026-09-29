@@ -1,0 +1,65 @@
+# axe-v10: the submitted axe-v9 runtime, with stage3_aug_ep29_final weights and
+# the route reranker baked in at gamma=0.01.
+#
+# Why anything has to be baked at all. Every reranker run so far bind-mounted
+# seven files over the image and injected five DRIVESUPRIM_ROUTE_RERANK_*
+# variables. The official evaluator does neither: it starts the container
+# read-only with exactly four variables (ALPASIM_DRIVER_HOST/PORT and
+# ALPASIM_CONTESTANT_REPLICA_INDEX/REPLICAS). So a submission that relies on
+# mounts or injected variables would run as plain axe-v9 with different weights
+# and score nothing like the local measurement.
+#
+# Why `rm -rf` before COPY. A bind mount REPLACES a path; COPY MERGES into it.
+# If the image's drivesuprim_challenge/ held a file this copy lacks, the mounted
+# runs would have hidden it while a COPY would leave it in place -- a difference
+# that could change behaviour between what was measured and what is submitted.
+# Removing the directory first reproduces mount semantics exactly, so the
+# submitted image runs the same code as the 441-clip run that produced 0.7180.
+# This is safe precisely because the mounted configuration ran five 441-clip
+# evaluations: had the package been incomplete, none of them would have started.
+#
+# __pycache__ is dropped rather than copied. The mounts carried it, but stale
+# bytecode that happens to match a source's size and mtime is a failure mode with
+# no upside; Python regenerates what it needs.
+#
+# The MPC gains are NOT here. They travel as the submit call's --controller-gains
+# argument and nowhere else; omitting that argument scores with evaluator
+# defaults (lat 1.0 / lon 2.0 / idx 10), a combination never measured.
+ARG BASE_IMAGE=696254625193.dkr.ecr.us-east-1.amazonaws.com/teams/axe:axe-v9
+FROM ${BASE_IMAGE}
+
+# 1. Weights. Same path the base image loads, so nothing else changes.
+COPY checkpoint.ckpt /app/assets/drivesuprim/axe_nurec_vits.ckpt
+
+# 2. Reranker code, replacing the same seven paths the mounts covered.
+RUN rm -rf /app/drivesuprim_challenge
+COPY drivesuprim_challenge /app/drivesuprim_challenge
+COPY drivesuprim_model.py  /app/navsim/agents/drivesuprim/drivesuprim_model.py
+COPY drivesuprim_config.py /app/navsim/agents/drivesuprim/drivesuprim_config.py
+COPY drivesuprim_agent.py  /app/navsim/agents/drivesuprim/drivesuprim_agent.py
+COPY route_reranker.py     /app/navsim/agents/drivesuprim/route_reranker.py
+COPY route_inputs.py       /app/navsim/agents/drivesuprim/route_inputs.py
+COPY rerank_variants.py    /app/rerank_variants.py
+RUN find /app/drivesuprim_challenge /app/navsim/agents/drivesuprim -name __pycache__ \
+        -type d -prune -exec rm -rf {} + || true
+
+# 3. The reranker's switches, exactly the values the gamma ladder measured.
+#    gamma 0.01 was the ladder's best over the 441 curated_val clips (0.7180 vs
+#    0.6951 with the reranker off). centre_dx 1.467 m is the rear-axle-to-body-
+#    centre offset the scorer uses; it is a fixed value here because that is what
+#    was measured -- the per-clip value varies by 0.155 m at most across the four
+#    vehicles in the set, and substituting it now would submit a configuration
+#    nothing has been scored with.
+ENV DRIVESUPRIM_ROUTE_RERANK=1 \
+    DRIVESUPRIM_ROUTE_RERANK_WEIGHT=0.01 \
+    DRIVESUPRIM_ROUTE_RERANK_CACHE=1 \
+    DRIVESUPRIM_ROUTE_RERANK_AGG=max \
+    DRIVESUPRIM_ROUTE_RERANK_CENTRE_DX=1.467
+
+ARG CHECKPOINT_SHA256
+ARG CHECKPOINT_SOURCE
+LABEL org.alpasim.checkpoint.sha256="${CHECKPOINT_SHA256}" \
+      org.alpasim.checkpoint.source="${CHECKPOINT_SOURCE}" \
+      org.alpasim.route_rerank="gamma=0.01 arm=cache-centre-max agg=max centre_dx=1.467 cache=1" \
+      org.alpasim.local_score="curated_val 441: avg_scene_score 0.7180, at_fault_km 1.2563" \
+      org.alpasim.base="axe-v9 (85134c1ea9f0)"

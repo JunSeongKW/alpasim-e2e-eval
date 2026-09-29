@@ -1,0 +1,43 @@
+# axe-v10, built as two layers instead of nine.
+#
+# Same result as Dockerfile.axe_v10 -- identical files, identical ENV -- but every
+# copy lands in one layer. That matters more than it looks: on this host each
+# layer commit over the 26 GB base cost between 7 and 117 minutes, so the nine-
+# layer version spent hours doing nothing but snapshotting. Batching the copies
+# removes seven of those commits.
+#
+# The staging directory mirrors the target paths, so a single COPY places all
+# seven files at once:
+#
+#   stage/app/drivesuprim_challenge/...
+#   stage/app/navsim/agents/drivesuprim/{drivesuprim_model,drivesuprim_config,
+#                                        drivesuprim_agent,route_reranker,
+#                                        route_inputs}.py
+#   stage/app/rerank_variants.py
+#
+# `rm -rf` of the package still has to precede the copy, and it still has to be
+# its own layer, because a bind mount REPLACES a directory while COPY MERGES into
+# it: if the image's package held a file this copy lacks, COPY would leave it
+# behind and the submitted image would not be the code that was measured.
+#
+# Build with prepare_axe_v10_context.sh, which assembles stage/ and checks the
+# checkpoint hash before invoking docker.
+ARG BASE_IMAGE=696254625193.dkr.ecr.us-east-1.amazonaws.com/teams/axe:axe-v9
+FROM ${BASE_IMAGE}
+
+RUN rm -rf /app/drivesuprim_challenge
+COPY stage/ /
+
+ENV DRIVESUPRIM_ROUTE_RERANK=1 \
+    DRIVESUPRIM_ROUTE_RERANK_WEIGHT=0.01 \
+    DRIVESUPRIM_ROUTE_RERANK_CACHE=1 \
+    DRIVESUPRIM_ROUTE_RERANK_AGG=max \
+    DRIVESUPRIM_ROUTE_RERANK_CENTRE_DX=1.467
+
+ARG CHECKPOINT_SHA256
+ARG CHECKPOINT_SOURCE
+LABEL org.alpasim.checkpoint.sha256="${CHECKPOINT_SHA256}" \
+      org.alpasim.checkpoint.source="${CHECKPOINT_SOURCE}" \
+      org.alpasim.route_rerank="gamma=0.01 arm=cache-centre-max agg=max centre_dx=1.467 cache=1" \
+      org.alpasim.local_score="curated_val 441: avg_scene_score 0.7180, at_fault_km 1.2563" \
+      org.alpasim.base="axe-v9 (85134c1ea9f0)"
