@@ -1,0 +1,134 @@
+{
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "torch": "2.0.1+cu118",
+ "cuda": "11.8",
+ "results": {
+  "fp32": {
+   "mean_ms": 58.12919107731432,
+   "p50_ms": 57.58564081043005,
+   "p90_ms": 58.55106562376022,
+   "p99_ms": 72.2290389239788,
+   "min_ms": 56.965429335832596,
+   "n": 200,
+   "peak_alloc_mib": 939,
+   "speedup_vs_fp32_p50": 1.0
+  },
+  "fp16": {
+   "mean_ms": 62.184755029156804,
+   "p50_ms": 60.76369900256395,
+   "p90_ms": 61.96052208542824,
+   "p99_ms": 95.76933458447456,
+   "min_ms": 60.22778898477554,
+   "n": 200,
+   "peak_alloc_mib": 938,
+   "max_traj_diff_m_vs_fp32": 29.287946701049805,
+   "speedup_vs_fp32_p50": 0.948
+  },
+  "trt_fp16": {
+   "mean_ms": 41.01225627120584,
+   "p50_ms": 40.3853515163064,
+   "p90_ms": 42.11642313748598,
+   "p99_ms": 50.44882372021675,
+   "min_ms": 40.029178373515606,
+   "n": 200,
+   "peak_alloc_mib": 947,
+   "max_traj_diff_m_vs_fp32": 0.0,
+   "backbone_rel_err_vs_torch": [
+    0.01337407622486353
+   ],
+   "onnx_export_s": 2.1,
+   "engine_build_s": 142.9,
+   "engine_mib": 44.5,
+   "plan": "backbone_fp16_0e7d2b37b21b47eb.plan",
+   "backbone_params_m": 21.59,
+   "speedup_vs_fp32_p50": 1.426
+  }
+ },
+ "fired_modules": 630,
+ "module_profile_fp32": [
+  {
+   "module": "teacher.model",
+   "mean_ms": 66.474,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone",
+   "mean_ms": 38.667,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder",
+   "mean_ms": 38.639,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head",
+   "mean_ms": 11.487,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._agent_head",
+   "mean_ms": 9.113,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.image_backbone",
+   "mean_ms": 6.935,
+   "calls_per_forward": 3.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.encoder",
+   "mean_ms": 5.17,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.encoder.self_attn",
+   "mean_ms": 4.855,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_offset_head",
+   "mean_ms": 4.803,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.transformer",
+   "mean_ms": 4.759,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder",
+   "mean_ms": 4.487,
+   "calls_per_forward": 3.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder.layers.0",
+   "mean_ms": 2.331,
+   "calls_per_forward": 3.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder.layers.2",
+   "mean_ms": 2.149,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder.layers.1",
+   "mean_ms": 2.147,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.transformer.layers.0",
+   "mean_ms": 1.636,
+   "calls_per_forward": 1.0
+  }
+ ],
+ "trt_candidates": [
+  "teacher.model._backbone.image_encoder.image_backbone",
+  "teacher.model._backbone.image_encoder",
+  "teacher.model._backbone"
+ ],
+ "trt_attempts": {
+  "teacher.model._backbone.image_encoder.image_backbone": "ok"
+ },
+ "trt_target": "teacher.model._backbone.image_encoder.image_backbone"
+}

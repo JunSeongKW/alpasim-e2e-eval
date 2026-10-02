@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from contextlib import nullcontext
 from dataclasses import dataclass, is_dataclass
 from pathlib import Path
@@ -512,6 +513,23 @@ class DriveSuprimPolicy:
 
         self._bev_debugger = BevDebugger(self._agent, self._config)
 
+        # Speed instrumentation (both off by default; see _run_agent).
+        self._timing_on = os.environ.get("DRIVESUPRIM_TIMING", "0") == "1"
+        self._trt_plan = os.environ.get("DRIVESUPRIM_TRT_PLAN", "").strip()
+        self._trt_target = os.environ.get("DRIVESUPRIM_TRT_TARGET", "").strip()
+        self._trt_ready = not self._trt_plan
+        self._call_index = 0
+        # Install the TensorRT backbone now, before the driver reports itself
+        # ready, rather than on the first Drive call: loading an engine takes
+        # seconds, and a first call that slow can trip the simulator's call
+        # timeout. The inputs are synthetic but shaped exactly like a real call;
+        # they are only used to record the backbone's output structure.
+        if self._trt_plan:
+            import sys as _sys
+            _sys.path.insert(0, "/bench")
+            from bench_trt import make_features
+            self._install_trt_backbone(make_features(self._device))
+
     def predict(
         self,
         camera_history: Sequence[
@@ -1009,6 +1027,60 @@ class DriveSuprimPolicy:
             statuses,
         )
 
+    def _install_trt_backbone(self, features) -> None:
+        """Replace the image backbone with a prebuilt TensorRT engine, once.
+
+        The engine is built offline (trt_bench/bench_trt.py) and only loaded
+        here, because building it takes minutes and a Drive call that waits
+        that long trips the simulator's call timeout. Loading takes seconds.
+
+        The wrapper still needs the backbone's output structure (a tensor, or a
+        tuple/list of feature maps), so one ordinary forward runs first with a
+        hook on the backbone to record it. That forward's result is discarded.
+        """
+        self._trt_ready = True
+        import sys
+
+        sys.path.insert(0, "/bench")
+        from trt_backbone import TrtModule, import_tensorrt, _Capture, _flatten
+
+        # Resolve the model exactly as bench_trt.py does, so the target name it
+        # reported (relative to this object) points at the same submodule here.
+        model = (getattr(self._agent, "_drivesuprim_model", None)
+                 or getattr(self._agent, "model", None) or self._agent)
+        name = self._trt_target
+        if not name:
+            raise RuntimeError("DRIVESUPRIM_TRT_PLAN set without DRIVESUPRIM_TRT_TARGET")
+        backbone = model.get_submodule(name)
+
+        cap = _Capture()
+        h = backbone.register_forward_hook(cap)
+        try:
+            with torch.inference_mode():
+                self._agent((features, None, None))
+        finally:
+            h.remove()
+        outs, kind = _flatten(cap.out)
+        n_in = sum(1 for a in cap.args if torch.is_tensor(a))
+
+        trt = import_tensorrt()
+        runtime = trt.Runtime(trt.Logger(trt.Logger.WARNING))
+        engine = runtime.deserialize_cuda_engine(open(self._trt_plan, "rb").read())
+        if engine is None:
+            raise RuntimeError(f"could not deserialize TensorRT plan {self._trt_plan}")
+        trt_mod = TrtModule(
+            engine, kind, [o.shape for o in outs], [o.dtype for o in outs],
+            [f"in{i}" for i in range(n_in)], [f"out{i}" for i in range(len(outs))],
+        )
+        parent_name, _, leaf = name.rpartition(".")
+        parent = model.get_submodule(parent_name) if parent_name else model
+        setattr(parent, leaf, trt_mod)
+        print(
+            f"[DriveSuprim] TRT backbone installed: target={name}"
+            f" plan={os.path.basename(self._trt_plan)} outputs={len(outs)} kind={kind}",
+            flush=True,
+        )
+
     def _run_agent(
         self,
         features,
@@ -1031,6 +1103,24 @@ class DriveSuprimPolicy:
             if capture_debug else None
         )
 
+        # Optional speed instrumentation, off unless asked for. Both switches are
+        # read once and default to off, so a container started without them
+        # runs exactly the code that was measured and submitted.
+        #   DRIVESUPRIM_TIMING=1     log the model time of every call
+        #   DRIVESUPRIM_TRT_PLAN=..  swap the image backbone for a prebuilt
+        #                            TensorRT engine (built once, offline)
+        if not hasattr(self, "_timing_on"):
+            self._timing_on = os.environ.get("DRIVESUPRIM_TIMING", "0") == "1"
+            self._trt_plan = os.environ.get("DRIVESUPRIM_TRT_PLAN", "").strip()
+            self._trt_target = os.environ.get("DRIVESUPRIM_TRT_TARGET", "").strip()
+            self._trt_ready = not self._trt_plan
+            self._call_index = 0
+        if not self._trt_ready:
+            self._install_trt_backbone(features)
+
+        if self._timing_on:
+            torch.cuda.synchronize()
+            _t0 = time.perf_counter()
         try:
             with (
                 torch.inference_mode(),
@@ -1056,6 +1146,16 @@ class DriveSuprimPolicy:
         finally:
             if hook is not None:
                 hook.remove()
+
+        if self._timing_on:
+            torch.cuda.synchronize()
+            self._call_index += 1
+            print(
+                f"[DriveSuprim] TIMING call={self._call_index}"
+                f" agent_ms={(time.perf_counter() - _t0) * 1000.0:.3f}"
+                f" trt={'1' if self._trt_plan else '0'}",
+                flush=True,
+            )
 
         if capture_debug:
             try:

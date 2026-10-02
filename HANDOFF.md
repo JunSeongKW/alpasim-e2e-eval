@@ -1,22 +1,39 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-09-27 10:37 KST (Claude Code)
+마지막 갱신: 2026-10-02 19:35 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-없음. 마지막 실행은 disjoint-ep04 + 리랭커 γ=0.02 441 평가로 9-27 04:14 에 끝났다.
-GPU 0-3 반납됨. `../models/` 의 체크포인트 11개 모두 441 평가가 있다.
-
-디스크: `runs/` 는 9-26 정리 후 현재 약 3 GB, 여유 2.1T. 남은 것은
-`.trash-260923/` 의 root 소유 yaml 5개(52 KB) — sudo 가 필요하고 크기가
-무의미해서 두었다.
+없음. 마지막 실행은 axe-v10 TensorRT 속도 측정(8클립 × FP32/TRT, 10-02 19:31 종료)이다.
+GPU 0-7 전부 반납됨(사용자가 이 측정에 한해 8장 전부 허락). 컨테이너 `axe-rr-trt8-*` 정리됨.
 
 - 미완: 원격 push (`git push mine`) 는 에이전트 권한으로 막혀 있어 사용자가 직접 해야 함.
 
 ## 2. 최근 결과
+
+### ★ axe-v10 TensorRT 속도 (2026-10-02, 보고서 `e2e_challenge/axe_local_eval/trt_bench/REPORT_TRT_SPEED.md`)
+
+이미지 백본(ViT-S)만 TensorRT FP16 엔진으로 바꿨다. 나머지는 PyTorch FP32 그대로다.
+
+| | FP32 | TensorRT | 배율 |
+|---|---:|---:|---:|
+| 단독 측정 평균 / p50 | 58.1 / 57.6 ms | 41.0 / 40.4 ms | 1.42 / 1.43배 |
+| 시뮬레이터 안 평균 / p50 (8클립, 1,494회) | 142.5 / 158.4 ms | 106.7 / 109.8 ms | 1.34 / 1.44배 |
+| 추론 FPS (시뮬 안, 평균 기준) | 7.0 | 9.4 | |
+| 드라이버당 VRAM | 3,235 MiB | 3,314 MiB | +79 MiB |
+| 클립당 시뮬레이션 시간 | 256 s | 251 s | −2% (렌더링이 병목) |
+| 8클립 판정 | 7 pass / 1 fail | 동일 | 7클립 점수 완전 동일 |
+
+- 기존 `DRIVESUPRIM_USE_FP16=1` 은 0.95배로 오히려 느리다. ViT 가 이미 내부에서 bf16 으로
+  돌고 있어서다(`bevformer_vits_amp=True`).
+- 시뮬레이터 안 지연이 단독보다 2.7배 큰 것은 같은 GPU 의 렌더러와 경합하기 때문이다.
+  최솟값은 단독 측정값과 같다. 옮겨 쓸 수 있는 수치는 ms 가 아니라 배율이다.
+- 엔진: `trt_bench/engines/backbone_fp16_0e7d2b37b21b47eb.plan` (44.5 MiB, TRT 10.13, sm_90,
+  git 제외). TensorRT 는 이미지에 넣지 않고 호스트 `../trt_site/`(3.2 GB, onnx 1.16.2
+  포함)를 마운트해서 썼다.
 
 ### ★ 리랭커는 모델에 따라 정반대로 작동한다 (2026-09-27)
 
@@ -134,6 +151,28 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- axe-v10 TensorRT 속도 측정을 마쳤다. 결과는 2절 첫 블록, 상세는 `trt_bench/REPORT_TRT_SPEED.md`.
+- `trt_bench/bench_trt.py`: 백본을 이름이 아니라 **실제 forward 에서 호출된 모듈**로 고르도록
+  바꿨다. 처음 실행은 추론에 쓰이지 않는 `student` 백본을 골라 실패했다. 추론 분기는
+  `config.inference.model=teacher` 다. 모듈별 GPU 시간 프로파일과 VRAM 측정을 추가했다.
+- `trt_bench/trt_backbone.py`: torch 2.0.1 로 ONNX 를 export 할 때 막히는 세 가지를 export
+  중에만 우회한다. ① ViT 내부 autocast 를 끈다. ② fused SDPA 를 같은 수식으로 풀어 쓴다.
+  ③ `tile` 을 `repeat` 로 바꾼다. 끝나면 원래대로 되돌린다.
+- `drivesuprim_challenge/policy.py`: 속도 계측용 스위치 두 개를 추가했다. 둘 다 기본값은
+  꺼짐이다. `DRIVESUPRIM_TIMING=1` 이면 호출마다 `TIMING call= agent_ms=` 를 찍는다.
+  `DRIVESUPRIM_TRT_PLAN` 과 `DRIVESUPRIM_TRT_TARGET` 을 주면 드라이버 기동 시 엔진을 끼운다.
+  지금은 `/bench` 의 헬퍼를 import 하므로 제출 이미지에 넣으려면 패키지 안으로 옮겨야 한다.
+- `route_reranker/start_drivers_reranker.sh`: `EXTRA_DOCKER_ARGS` 를 추가했다. 기본값이 비어
+  있어 기존 호출자의 컨테이너는 그대로다.
+- 새로 만든 것: `trt_bench/run_trt_8clips.sh`(한쪽 arm 실행), `summarize_trt8.py`(TIMING
+  집계), `sample_vram.sh`(드라이버별 VRAM, cgroup 으로 컨테이너 매핑), `clips8.txt`.
+- 실행: `runs/trt8-fp32-1002_1912*`, `runs/trt8-trt-1002_1921*`, `runs/trt8-vram.csv`.
+- 앞선 작업 몇 가지도 이번 커밋에 같이 들어간다. `parity_axe_v10.sh` 와 `run_1clip_ep29.sh`
+  의 GPU 가드를 "여유 메모리 15000 MiB 이상"으로 바꿨고, `fit_leaderboard_260928.sh` 를
+  추가했다.
+
+### 이전 커밋들에 있던 내용 (참고)
+
 - disjoint-ep04 + 리랭커 γ=0.02 441 평가 완료(244분). 런처
   `route_reranker/run_441_disjoint_ep04.sh`, 진행 로거 `route_reranker/progress_441.sh`.
   결과는 2절 첫 블록. 리더보드는 20주체로 재적합(`fit_leaderboard_260927.sh`).
@@ -177,13 +216,21 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 ## 4. 다음 단계
 
 1. `git push mine`(사용자). 커밋이 여러 개 앞서 있다.
-2. 리랭커 결과를 상황 의존 가중으로 확장할지 결정. 지금 결과는 고정 γ 의 한계를
+2. (TensorRT 를 제출본에 넣기로 하면) TRT 런타임 라이브러리를 이미지에 넣고,
+   엔진을 COPY 하고, `trt_backbone` 헬퍼를 `drivesuprim_challenge` 안으로 옮긴다.
+   그다음 441 패리티를 확인한다. 더 빠르게 하려면 다음 후보는 BEV 인코더(약 14 ms,
+   `FORCE_PYTORCH_MSDA=1` 이라 순수 PyTorch), trajectory head(12 ms), agent head(9 ms)다.
+3. 리랭커 결과를 상황 의존 가중으로 확장할지 결정. 지금 결과는 고정 γ 의 한계를
    보여주는 음성 증거이고, 다음 실험은 γ 를 상수가 아니라 driving context 의 함수로
    두는 쪽이 원래 명제를 직접 겨냥한다. γ 를 더 촘촘히 스윕하는 것은 곁가지다.
-3. aug-ep29-final 의 충돌만 axe-v9 수준으로 내리면 제출본을 넘는다. 리랭커는 route
+4. aug-ep29-final 의 충돌만 axe-v9 수준으로 내리면 제출본을 넘는다. 리랭커는 route
    준수 축이라 이 축을 건드리지 않는다 — 충돌 축에 직접 작용하는 항이 필요하다.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- TensorRT 를 제출 이미지에 넣을지. 모델 추론은 1.34–1.44배 빨라지지만, 공식 환경에
+  실시간 마감이 있는지는 모른다. 로컬 시뮬레이터는 동기식이라 점수에 영향이 없다.
+  이미지는 약 3.2 GB 늘어난다.
 
 - 리랭커 γ=0.02 를 제출본으로 교체할지. 장면점수 +0.031 이지만 PCS 는 동률
   (2699.6 vs 2703.3, 구간 둘 다 1-6). 공식 지표로는 교체 근거가 없다.

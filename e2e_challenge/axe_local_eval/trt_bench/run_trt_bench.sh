@@ -30,16 +30,22 @@ mkdir -p "$OUT"
 
 free="$(nvidia-smi -i "$CARD" --query-gpu=memory.free --format=csv,noheader,nounits)"
 (( free >= NEED_FREE )) || { echo "GPU $CARD has only ${free} MiB free, need ${NEED_FREE}"; exit 2; }
-[[ -d "$SITE/tensorrt" ]] || { echo "TensorRT not installed at $SITE"; exit 2; }
+[[ -d "$SITE/tensorrt_bindings" || -d "$SITE/tensorrt" ]] || { echo "TensorRT not installed at $SITE"; exit 2; }
 
 stamp="$(date +%Y%m%d_%H%M%S)"
 echo "[$(date '+%F %T')] benchmark on GPU $CARD (${free} MiB free) -> $OUT/bench_$stamp.json"
 docker rm -f "$NAME" >/dev/null 2>&1 || true
+# The engine is written to a host directory so the driver-side runs can load the
+# same plan instead of each driver rebuilding it on its first Drive call.
+ENGINE_DIR="${ENGINE_DIR:-$HERE/engines}"
+mkdir -p "$ENGINE_DIR"
 docker run --rm --name "$NAME" --gpus "device=$CARD" \
+    --user "$(id -u):$(id -g)" -e HOME=/tmp \
     --tmpfs /tmp:rw,size=8g \
     -e PYTHONPATH="/trt_site:/bench" \
     -e LD_LIBRARY_PATH="/trt_site/tensorrt_libs:/trt_site/nvidia/cuda_runtime/lib" \
-    -e TRT_WORKDIR=/tmp/trt \
+    -e TRT_WORKDIR=/engines \
+    -v "$ENGINE_DIR:/engines" \
     -e PYTHONDONTWRITEBYTECODE=1 \
     -v "$SITE:/trt_site:ro" \
     -v "$HERE:/bench:ro" \

@@ -1,0 +1,117 @@
+{
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "torch": "2.0.1+cu118",
+ "cuda": "11.8",
+ "results": {
+  "fp32": {
+   "mean_ms": 58.69246061425656,
+   "p50_ms": 58.37382562458515,
+   "p90_ms": 60.235071927309036,
+   "p99_ms": 61.07976473867893,
+   "min_ms": 57.34368320554495,
+   "n": 200,
+   "peak_alloc_mib": 939,
+   "speedup_vs_fp32_p50": 1.0
+  },
+  "fp16": {
+   "mean_ms": 64.0144481509924,
+   "p50_ms": 64.29977342486382,
+   "p90_ms": 65.324985422194,
+   "p99_ms": 66.38268381357193,
+   "min_ms": 60.86580455303192,
+   "n": 200,
+   "peak_alloc_mib": 938,
+   "max_traj_diff_m_vs_fp32": 29.287946701049805,
+   "speedup_vs_fp32_p50": 0.908
+  }
+ },
+ "fired_modules": 630,
+ "module_profile_fp32": [
+  {
+   "module": "teacher.model",
+   "mean_ms": 67.427,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone",
+   "mean_ms": 39.072,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder",
+   "mean_ms": 39.042,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head",
+   "mean_ms": 11.566,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._agent_head",
+   "mean_ms": 9.262,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.image_backbone",
+   "mean_ms": 7.016,
+   "calls_per_forward": 3.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.encoder",
+   "mean_ms": 5.197,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_offset_head",
+   "mean_ms": 5.013,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.encoder.self_attn",
+   "mean_ms": 4.865,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.transformer",
+   "mean_ms": 4.778,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder",
+   "mean_ms": 4.51,
+   "calls_per_forward": 3.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder.layers.0",
+   "mean_ms": 2.349,
+   "calls_per_forward": 3.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder.layers.1",
+   "mean_ms": 2.144,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._backbone.image_encoder.encoder.layers.2",
+   "mean_ms": 2.144,
+   "calls_per_forward": 1.0
+  },
+  {
+   "module": "teacher.model._trajectory_head.transformer.layers.0",
+   "mean_ms": 1.647,
+   "calls_per_forward": 1.0
+  }
+ ],
+ "trt_candidates": [
+  "teacher.model._backbone.image_encoder.image_backbone",
+  "teacher.model._backbone.image_encoder",
+  "teacher.model._backbone"
+ ],
+ "trt_attempts": {
+  "teacher.model._backbone.image_encoder.image_backbone": "OnnxExporterError: Module onnx is not installed!",
+  "teacher.model._backbone.image_encoder": "TypeError: backbone takes non-tensor positional arguments; not exportable as-is",
+  "teacher.model._backbone": "TypeError: backbone takes non-tensor positional arguments; not exportable as-is"
+ },
+ "trt_error": "no candidate converted; see trt_attempts"
+}

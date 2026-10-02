@@ -53,6 +53,62 @@ class _Capture:
             self.out = out
 
 
+_AMP_FLAGS = ("vit_amp", "_vit_amp", "amp", "_amp", "use_amp", "enable_amp")
+
+
+def _sdpa_math(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
+    """scaled_dot_product_attention written out, for export: torch 2.0's ONNX
+    exporter has no symbolic for the fused op. Same math, eval mode."""
+    s = (q @ k.transpose(-2, -1)) * (scale if scale is not None else q.shape[-1] ** -0.5)
+    if attn_mask is not None:
+        s = s.masked_fill(~attn_mask, float("-inf")) if attn_mask.dtype == torch.bool else s + attn_mask
+    return torch.softmax(s, dim=-1) @ v
+
+
+def _tile(x, *dims):
+    dims = tuple(dims[0]) if len(dims) == 1 and isinstance(dims[0], (tuple, list, torch.Size)) else dims
+    dims = (1,) * (x.dim() - len(dims)) + tuple(dims)
+    return x.repeat(dims)
+
+
+class _exportable:
+    """Export the backbone as plain fp32 ops.
+
+    The ViT autocasts itself to bf16 (config bevformer_vits_amp) and calls the
+    fused attention op; neither traces cleanly to ONNX under torch 2.0. Both are
+    switched off only while exporting -- TensorRT then chooses FP16 kernels
+    itself -- and restored afterwards, so the torch path is untouched.
+    """
+
+    def __init__(self, module):
+        self.module = module
+        self.saved = []
+
+    def __enter__(self):
+        import torch.nn.functional as F
+        for m in self.module.modules():
+            for f in _AMP_FLAGS:
+                if isinstance(getattr(m, f, None), bool) and getattr(m, f):
+                    self.saved.append((m, f))
+                    setattr(m, f, False)
+        self.sdpa = F.scaled_dot_product_attention
+        F.scaled_dot_product_attention = _sdpa_math
+        # torch 2.0 has no ONNX symbolic for aten::tile; repeat is the same op
+        # once the repeat counts are left-padded to the tensor's rank.
+        self.tile = (torch.Tensor.tile, torch.tile)
+        torch.Tensor.tile = _tile
+        torch.tile = _tile
+        return self
+
+    def __exit__(self, *exc):
+        import torch.nn.functional as F
+        F.scaled_dot_product_attention = self.sdpa
+        torch.Tensor.tile, torch.tile = self.tile
+        for m, f in self.saved:
+            setattr(m, f, True)
+        return False
+
+
 def _flatten(out):
     if torch.is_tensor(out):
         return [out], "tensor"
@@ -104,12 +160,14 @@ class TrtModule(torch.nn.Module):
         onnx_path = os.path.join(workdir, "backbone.onnx")
 
         t0 = time.time()
-        with torch.no_grad():
+        with torch.no_grad(), _exportable(module):
             torch.onnx.export(
                 module.eval(), tuple(tensor_args), onnx_path,
                 input_names=in_names, output_names=out_names,
                 opset_version=17, do_constant_folding=True,
             )
+        export_seconds = round(time.time() - t0, 1)
+        t0 = time.time()
         digest = hashlib.sha256(open(onnx_path, "rb").read()).hexdigest()[:16]
         plan_path = os.path.join(workdir, f"backbone_fp16_{digest}.plan")
 
@@ -135,6 +193,11 @@ class TrtModule(torch.nn.Module):
 
         mod = cls(engine, kind, [o.shape for o in outs], [o.dtype for o in outs], in_names, out_names)
         mod.build_seconds = round(time.time() - t0, 1)
+        mod.export_seconds = export_seconds
+        mod.plan_path = plan_path
+        mod.plan_bytes = os.path.getsize(plan_path)
+        mod.sample_args = tensor_args
+        mod.ref_outs = [o.detach().clone() for o in outs]
         return mod
 
     def forward(self, *args):

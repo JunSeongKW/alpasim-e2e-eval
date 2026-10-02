@@ -1,0 +1,2 @@
+# Runtime stop markers for the gamma/gate sweep loops; local state, not code.
+STOP_*

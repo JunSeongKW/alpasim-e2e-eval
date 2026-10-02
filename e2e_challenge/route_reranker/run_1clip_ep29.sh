@@ -40,8 +40,12 @@ log() { echo "[$(date '+%F %H:%M:%S')] $*" | tee -a "$LOG"; }
 RUN_DIR="$ROOT/runs/$RUN_TAG-$ARM"
 [[ ! -e "$RUN_DIR" ]] || { log "refusing to overwrite $RUN_DIR"; exit 2; }
 
-used="$(nvidia-smi -i "$CARD" --query-gpu=memory.used --format=csv,noheader,nounits)"
-(( used < 4000 )) || { log "GPU $CARD not free (${used} MiB); refusing"; exit 2; }
+# One clip needs about 12 GB (driver 3.6, the rest renderer/physics/runtime), so
+# what matters is free memory rather than an empty card. NEED_FREE leaves a margin
+# so a neighbour that grows does not OOM because of this run.
+NEED_FREE="${NEED_FREE:-15000}"
+free="$(nvidia-smi -i "$CARD" --query-gpu=memory.free --format=csv,noheader,nounits)"
+(( free >= NEED_FREE )) || { log "GPU $CARD has only ${free} MiB free, need ${NEED_FREE}"; exit 2; }
 
 log "=== 1 clip, ep29, arm=$ARM gamma=$GAMMA, video ON, GPU $CARD ==="
 log "clip: $(cat "$HERE/clip1_turn.txt")"

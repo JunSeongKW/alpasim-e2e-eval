@@ -1,0 +1,132 @@
+{
+ "fp32": {
+  "driver_logs": 8,
+  "drivers_with_timing": 8,
+  "trt_flag": [
+   "0"
+  ],
+  "steady": {
+   "n": 1494,
+   "mean_ms": 142.45,
+   "p50_ms": 158.37,
+   "p90_ms": 187.57,
+   "p99_ms": 212.56,
+   "max_ms": 726.62,
+   "min_ms": 61.09,
+   "std_ms": 45.83,
+   "fps_from_mean": 7.02,
+   "fps_from_p50": 6.31,
+   "share_over_100ms": 0.7262,
+   "headroom_ms_p99_vs_100": -112.56
+  },
+  "warmup_calls_ms": [
+   1950.5,
+   178.0,
+   122.4,
+   2647.7,
+   265.1,
+   165.8,
+   1924.5,
+   494.6,
+   186.2,
+   2323.4,
+   238.1,
+   172.1,
+   2249.8,
+   151.9,
+   175.0,
+   2277.8,
+   428.0,
+   179.0,
+   2858.5,
+   218.9,
+   180.7,
+   2074.1,
+   163.5,
+   213.1
+  ],
+  "per_driver_p50_spread_ms": [
+   117.92,
+   167.21
+  ],
+  "results_summary": "runs/trt8-fp32-1002_1912-cache-centre-max/aggregate/results-summary.json",
+  "arm_wall_s": 635
+ },
+ "trt": {
+  "driver_logs": 8,
+  "drivers_with_timing": 8,
+  "trt_flag": [
+   "1"
+  ],
+  "steady": {
+   "n": 1494,
+   "mean_ms": 106.7,
+   "p50_ms": 109.8,
+   "p90_ms": 150.68,
+   "p99_ms": 161.43,
+   "max_ms": 551.08,
+   "min_ms": 42.04,
+   "std_ms": 36.61,
+   "fps_from_mean": 9.37,
+   "fps_from_p50": 9.11,
+   "share_over_100ms": 0.5535,
+   "headroom_ms_p99_vs_100": -61.43
+  },
+  "warmup_calls_ms": [
+   129.3,
+   348.0,
+   146.0,
+   160.1,
+   293.3,
+   450.2,
+   126.2,
+   198.3,
+   93.1,
+   61.0,
+   139.9,
+   64.6,
+   122.2,
+   236.7,
+   121.1,
+   139.7,
+   535.5,
+   150.0,
+   142.9,
+   193.4,
+   44.6,
+   76.9,
+   167.8,
+   60.7
+  ],
+  "per_driver_p50_spread_ms": [
+   71.86,
+   128.55
+  ],
+  "results_summary": "runs/trt8-trt-1002_1921-cache-centre-max/aggregate/results-summary.json",
+  "arm_wall_s": 592
+ },
+ "speedup": {
+  "mean_ms": 1.335,
+  "p50_ms": 1.442,
+  "p90_ms": 1.245,
+  "p99_ms": 1.317
+ },
+ "saved_ms": {
+  "mean_ms": 35.75,
+  "p50_ms": 48.57,
+  "p90_ms": 36.89,
+  "p99_ms": 51.13
+ },
+ "vram": {
+  "fp32": {
+   "drivers": 8,
+   "peak_mib_mean": 3235,
+   "peak_mib_max": 3242
+  },
+  "trt": {
+   "drivers": 8,
+   "peak_mib_mean": 3314,
+   "peak_mib_max": 3314
+  }
+ }
+}

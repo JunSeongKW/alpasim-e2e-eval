@@ -42,8 +42,15 @@ PREFIX="axe-parity-v10"
 log() { echo "[$(date '+%F %H:%M:%S')] $*" | tee -a "$LOG"; }
 
 [[ ! -e "$RUN_DIR" ]] || { log "refusing to overwrite $RUN_DIR"; exit 2; }
-used="$(nvidia-smi -i "$CARD" --query-gpu=memory.used --format=csv,noheader,nounits)"
-(( used < 4000 )) || { log "GPU $CARD not free (${used} MiB)"; exit 2; }
+# One clip needs about 12 GB: 3.6 for the driver, the rest for one renderer plus
+# physics/controller/runtime. What matters is free memory, not whether the card is
+# empty -- the 441 launchers demand an empty card because they fill it, but a
+# single clip can share one. NEED_FREE keeps a margin above the 12 GB so a
+# neighbour that grows a little does not OOM because of this run.
+NEED_FREE="${NEED_FREE:-15000}"
+free="$(nvidia-smi -i "$CARD" --query-gpu=memory.free --format=csv,noheader,nounits)"
+(( free >= NEED_FREE )) || { log "GPU $CARD has only ${free} MiB free, need ${NEED_FREE}"; exit 2; }
+log "GPU $CARD: ${free} MiB free"
 
 # The same overrides the mounted run used, so the eval config is identical.
 VIDEO_OVERRIDES=(

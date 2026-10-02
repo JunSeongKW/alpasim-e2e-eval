@@ -128,11 +128,36 @@ def time_calls(fn, warmup, iters):
             "p99_ms": q(0.99), "min_ms": ms[0], "n": len(ms)}
 
 
-def profile_modules(model, call, top=12):
-    """Per-submodule GPU time, to find what is worth converting."""
+def fired_modules(model, call, min_params=0):
+    """Names of the submodules one forward actually calls, in call order.
+
+    Inference uses one branch of a student/teacher pair (config.inference.model),
+    and some parents call a child through a method rather than __call__, so hooks
+    on a module that is never entered silently record nothing. Only modules seen
+    here are worth profiling or converting.
+    """
+    seen, handles = [], []
+    for name, mod in model.named_modules():
+        if not name or sum(p.numel() for p in mod.parameters()) < min_params:
+            continue
+        handles.append(mod.register_forward_pre_hook(
+            lambda m, i, n=name: seen.append(n) if n not in seen else None))
+    try:
+        with torch.inference_mode():
+            call()
+    finally:
+        for h in handles:
+            h.remove()
+    return seen
+
+
+def profile_modules(model, call, names, top=15):
+    """Per-submodule GPU time, to find what is worth converting. Nested modules
+    overlap (a parent's time includes its children's)."""
     events = {}
     handles = []
-    for name, mod in model.named_children():
+    for name in names:
+        mod = model.get_submodule(name)
         def pre(m, i, n=name):
             e = torch.cuda.Event(enable_timing=True); e.record(); events.setdefault(n, []).append([e, None])
         def post(m, i, o, n=name):
@@ -158,14 +183,19 @@ def profile_modules(model, call, top=12):
     return [{"module": n, "mean_ms": round(t, 3), "calls_per_forward": c} for n, t, c in rows[:top]]
 
 
-def find_image_backbone(model):
-    """The image encoder is the usual TensorRT target: a plain conv/transformer
-    stack with no data-dependent control flow. Locate it by name."""
-    for name in ("img_backbone", "image_backbone", "backbone", "_backbone", "img_encoder"):
-        for full, mod in model.named_modules():
-            if full.split(".")[-1] == name and sum(p.numel() for p in mod.parameters()) > 1e6:
-                return full, mod
-    return None, None
+TARGET_LEAVES = ("image_backbone", "vit", "img_backbone", "image_encoder", "backbone", "_backbone")
+
+
+def backbone_candidates(model, fired):
+    """Conversion targets, best first: the image encoder is the usual TensorRT
+    target (a plain transformer stack with no data-dependent control flow).
+    Only modules the inference forward actually enters are considered."""
+    big = set(fired_names for fired_names in fired
+              if sum(p.numel() for p in model.get_submodule(fired_names).parameters()) > 1e6)
+    out = []
+    for leaf in TARGET_LEAVES:
+        out += [n for n in fired if n in big and n.split(".")[-1] == leaf and n not in out]
+    return out
 
 
 def main():
@@ -186,48 +216,73 @@ def main():
     agent = policy._agent
     model = getattr(agent, "_drivesuprim_model", None) or getattr(agent, "model", None) or agent
 
+    def timed(label):
+        torch.cuda.reset_peak_memory_stats()
+        r = time_calls(lambda: policy._run_agent(feats), a.warmup, a.iters)
+        r["peak_alloc_mib"] = round(torch.cuda.max_memory_allocated() / 2**20)
+        print(label, r, flush=True)
+        return r
+
     # --- fp32: as shipped ---------------------------------------------------
     policy._use_autocast = False
     with torch.inference_mode():
         ref = trajectory_of(policy._run_agent(feats))
-    report["module_profile_fp32"] = profile_modules(model, lambda: policy._run_agent(feats))
-    report["results"]["fp32"] = time_calls(lambda: policy._run_agent(feats), a.warmup, a.iters)
-    print("fp32", report["results"]["fp32"], flush=True)
+    fired = fired_modules(model, lambda: policy._run_agent(feats))
+    report["fired_modules"] = len(fired)
+    shallow = [n for n in fired if n.count(".") <= 6
+               and sum(p.numel() for p in model.get_submodule(n).parameters()) > 0]
+    report["module_profile_fp32"] = profile_modules(model, lambda: policy._run_agent(feats), shallow)
+    print("profile", json.dumps(report["module_profile_fp32"], indent=1), flush=True)
+    report["results"]["fp32"] = timed("fp32")
 
     # --- fp16 autocast: the driver's existing switch -------------------------
     policy._use_autocast = True
     out16 = trajectory_of(policy._run_agent(feats))
-    report["results"]["fp16"] = time_calls(lambda: policy._run_agent(feats), a.warmup, a.iters)
+    report["results"]["fp16"] = timed("fp16")
     report["results"]["fp16"]["max_traj_diff_m_vs_fp32"] = float(np.abs(out16 - ref).max())
-    print("fp16", report["results"]["fp16"], flush=True)
     policy._use_autocast = False
 
     # --- TensorRT: image backbone as an FP16 engine --------------------------
     if not a.skip_trt:
-        name, backbone = find_image_backbone(model)
-        report["trt_target"] = name
-        if backbone is None:
-            report["trt_error"] = "no image backbone found by name; see module_profile_fp32"
-        else:
+        from trt_backbone import TrtModule
+        report["trt_candidates"] = backbone_candidates(model, fired)
+        report["trt_attempts"] = {}
+        for name in report["trt_candidates"]:
+            backbone = model.get_submodule(name)
             try:
-                from trt_backbone import TrtModule
                 trt_mod = TrtModule.build(backbone, sample=feats, policy=policy,
                                           workdir=os.environ.get("TRT_WORKDIR", "/tmp/trt"))
-                parent = model.get_submodule(name.rsplit(".", 1)[0]) if "." in name else model
-                original = getattr(parent, name.rsplit(".", 1)[-1])
-                setattr(parent, name.rsplit(".", 1)[-1], trt_mod)
-                try:
+            except Exception as exc:  # report, do not hide; try the next one
+                report["trt_attempts"][name] = f"{type(exc).__name__}: {str(exc)[:400]}"
+                print("TRT FAILED:", name, report["trt_attempts"][name], flush=True)
+                continue
+            report["trt_attempts"][name] = "ok"
+            report["trt_target"] = name
+            parent_name, _, leaf = name.rpartition(".")
+            parent = model.get_submodule(parent_name) if parent_name else model
+            original = getattr(parent, leaf)
+            setattr(parent, leaf, trt_mod)
+            try:
+                with torch.inference_mode():
                     outt = trajectory_of(policy._run_agent(feats))
-                    r = time_calls(lambda: policy._run_agent(feats), a.warmup, a.iters)
-                    r["max_traj_diff_m_vs_fp32"] = float(np.abs(outt - ref).max())
-                    r["engine_build_s"] = trt_mod.build_seconds
-                    report["results"]["trt_fp16"] = r
-                    print("trt_fp16", r, flush=True)
-                finally:
-                    setattr(parent, name.rsplit(".", 1)[-1], original)
-            except Exception as exc:  # report, do not hide
-                report["trt_error"] = f"{type(exc).__name__}: {exc}"
-                print("TRT FAILED:", report["trt_error"], flush=True)
+                    got = trt_mod(*trt_mod.sample_args)
+                got = got if isinstance(got, (list, tuple)) else [got]
+                rel = [float((g.float() - r.float()).norm() / (r.float().norm() + 1e-12))
+                       for g, r in zip(got, trt_mod.ref_outs)]
+                r = timed("trt_fp16")
+                r["max_traj_diff_m_vs_fp32"] = float(np.abs(outt - ref).max())
+                r["backbone_rel_err_vs_torch"] = rel
+                r["onnx_export_s"] = trt_mod.export_seconds
+                r["engine_build_s"] = trt_mod.build_seconds
+                r["engine_mib"] = round(trt_mod.plan_bytes / 2**20, 1)
+                r["plan"] = os.path.basename(trt_mod.plan_path)
+                r["backbone_params_m"] = round(sum(p.numel() for p in original.parameters()) / 1e6, 2)
+                report["results"]["trt_fp16"] = r
+            finally:
+                setattr(parent, leaf, original)
+            break
+        if "trt_target" not in report:
+            report["trt_error"] = "no candidate converted; see trt_attempts"
 
     base = report["results"]["fp32"]["p50_ms"]
     for k, v in report["results"].items():

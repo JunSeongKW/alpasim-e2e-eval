@@ -1,0 +1,29 @@
+{
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "torch": "2.0.1+cu118",
+ "cuda": "11.8",
+ "results": {
+  "fp32": {
+   "mean_ms": 58.31544100306928,
+   "p50_ms": 58.17733146250248,
+   "p90_ms": 58.514295145869255,
+   "p99_ms": 68.92051082104445,
+   "min_ms": 57.70427919924259,
+   "n": 200,
+   "speedup_vs_fp32_p50": 1.0
+  },
+  "fp16": {
+   "mean_ms": 62.0116644538939,
+   "p50_ms": 61.783742159605026,
+   "p90_ms": 62.23643384873867,
+   "p99_ms": 71.98023051023483,
+   "min_ms": 60.590874403715134,
+   "n": 200,
+   "max_traj_diff_m_vs_fp32": 29.287946701049805,
+   "speedup_vs_fp32_p50": 0.942
+  }
+ },
+ "module_profile_fp32": [],
+ "trt_target": "student.model._backbone.image_encoder.image_backbone",
+ "trt_error": "RuntimeError: backbone was never called during a forward"
+}

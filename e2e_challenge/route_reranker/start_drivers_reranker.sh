@@ -40,6 +40,10 @@ ROUTE_RERANK_CACHE="${ROUTE_RERANK_CACHE:-0}"
 ROUTE_RERANK_AGG="${ROUTE_RERANK_AGG:-mean}"
 # 0.0 = measure from the vocab pose (the bundle); 1.467 = the body centre.
 ROUTE_RERANK_CENTRE_DX="${ROUTE_RERANK_CENTRE_DX:-0.0}"
+# Extra `docker run` arguments, whitespace-separated (e.g. the TensorRT speed
+# test's mounts and DRIVESUPRIM_TIMING). Empty by default: every existing caller
+# starts exactly the containers it started before.
+read -r -a extra_docker_args <<< "${EXTRA_DOCKER_ARGS:-}"
 
 for f in "$DRIVER_PKG/driver.py" "$MODEL_PY" "$CONFIG_PY" "$RERANKER_PY" "$ROUTE_INPUTS_PY" "$VARIANTS_PY" "$AGENT_PY"; do
     [[ -f "$f" ]] || { echo "ERROR: missing $f" >&2; exit 2; }
@@ -127,6 +131,7 @@ for gpu in "${gpu_indices[@]}"; do
             -e "DRIVESUPRIM_ROUTE_RERANK_CACHE=${ROUTE_RERANK_CACHE}" \
             -e "DRIVESUPRIM_ROUTE_RERANK_AGG=${ROUTE_RERANK_AGG}" \
             -e "DRIVESUPRIM_ROUTE_RERANK_CENTRE_DX=${ROUTE_RERANK_CENTRE_DX}" \
+            ${extra_docker_args[@]+"${extra_docker_args[@]}"} \
             "$IMAGE" >/dev/null
         ports+=("$port"); names+=("$name")
         port=$((port + 1))
