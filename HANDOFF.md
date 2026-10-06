@@ -1,11 +1,13 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-02 19:35 KST (Claude Code)
+마지막 갱신: 2026-10-06 11:26 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
+
+2026-10-06 Codex: 요청받은 441 통합 leaderboard CPU 재적합 완료. 새 시뮬레이션은 실행하지 않음.
 
 없음. 마지막 실행은 axe-v10 TensorRT 속도 측정(8클립 × FP32/TRT, 10-02 19:31 종료)이다.
 GPU 0-7 전부 반납됨(사용자가 이 측정에 한해 8장 전부 허락). 컨테이너 `axe-rr-trt8-*` 정리됨.
@@ -13,6 +15,16 @@ GPU 0-7 전부 반납됨(사용자가 이 측정에 한해 8장 전부 허락). 
 - 미완: 원격 push (`git push mine`) 는 에이전트 권한으로 막혀 있어 사용자가 직접 해야 함.
 
 ## 2. 최근 결과
+
+### 441 전체 통합 leaderboard 갱신 (2026-10-06)
+
+- 완료된 독립 로컬 26개 + 참조 8개, 동일 441개 장면으로 ZOIB 동시 적합. 경고·제외 없음.
+- 결과: `runs/leaderboard-261006/capability_ranking.csv`, `manifest.json`; 사용자 형식 CSV: `e2e_challenge/axe_local_eval/data/local_leaderboard_261006.csv`.
+- axe-v10 = aug-ep29-final + reranker γ=0.01: Rank 10, PCS 2526, 장면점수 0.7180, at-fault 거리 1.2563 km, 95% 순위 구간 5–15.
+- Rank 1: axe-v9+rerank-g0.02 (PCS 2683, 구간 1–7), Rank 2: axe-v9 (PCS 2683, 구간 1–7).
+- Rank는 구간 상한 오름차순 → at-fault 거리 내림차순. PCS 단순 정렬이 아니다. 아래 이전 적합 값들과 PCS를 혼용하지 않는다.
+- γ=0.005는 129 rollout만 완료돼 제외. ep24egobox-1roll은 기존 3-rollout 평가의 파생본이어서 중복 제외. axe-v8와 footprint 미적용 ep24는 장면당 3회 평균.
+- axe-v10 수치는 제출 구성과 같은 checkpoint/reranker의 441 실행 결과이며, 제출 이미지 자체의 441 재평가나 TRT 441 결과가 아니다.
 
 ### ★ axe-v10 TensorRT 속도 (2026-10-02, 보고서 `e2e_challenge/axe_local_eval/trt_bench/REPORT_TRT_SPEED.md`)
 
@@ -151,69 +163,14 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- axe-v10 TensorRT 속도 측정을 마쳤다. 결과는 2절 첫 블록, 상세는 `trt_bench/REPORT_TRT_SPEED.md`.
-- `trt_bench/bench_trt.py`: 백본을 이름이 아니라 **실제 forward 에서 호출된 모듈**로 고르도록
-  바꿨다. 처음 실행은 추론에 쓰이지 않는 `student` 백본을 골라 실패했다. 추론 분기는
-  `config.inference.model=teacher` 다. 모듈별 GPU 시간 프로파일과 VRAM 측정을 추가했다.
-- `trt_bench/trt_backbone.py`: torch 2.0.1 로 ONNX 를 export 할 때 막히는 세 가지를 export
-  중에만 우회한다. ① ViT 내부 autocast 를 끈다. ② fused SDPA 를 같은 수식으로 풀어 쓴다.
-  ③ `tile` 을 `repeat` 로 바꾼다. 끝나면 원래대로 되돌린다.
-- `drivesuprim_challenge/policy.py`: 속도 계측용 스위치 두 개를 추가했다. 둘 다 기본값은
-  꺼짐이다. `DRIVESUPRIM_TIMING=1` 이면 호출마다 `TIMING call= agent_ms=` 를 찍는다.
-  `DRIVESUPRIM_TRT_PLAN` 과 `DRIVESUPRIM_TRT_TARGET` 을 주면 드라이버 기동 시 엔진을 끼운다.
-  지금은 `/bench` 의 헬퍼를 import 하므로 제출 이미지에 넣으려면 패키지 안으로 옮겨야 한다.
-- `route_reranker/start_drivers_reranker.sh`: `EXTRA_DOCKER_ARGS` 를 추가했다. 기본값이 비어
-  있어 기존 호출자의 컨테이너는 그대로다.
-- 새로 만든 것: `trt_bench/run_trt_8clips.sh`(한쪽 arm 실행), `summarize_trt8.py`(TIMING
-  집계), `sample_vram.sh`(드라이버별 VRAM, cgroup 으로 컨테이너 매핑), `clips8.txt`.
-- 실행: `runs/trt8-fp32-1002_1912*`, `runs/trt8-trt-1002_1921*`, `runs/trt8-vram.csv`.
-- 앞선 작업 몇 가지도 이번 커밋에 같이 들어간다. `parity_axe_v10.sh` 와 `run_1clip_ep29.sh`
-  의 GPU 가드를 "여유 메모리 15000 MiB 이상"으로 바꿨고, `fit_leaderboard_260928.sh` 를
-  추가했다.
-
-### 이전 커밋들에 있던 내용 (참고)
-
-- disjoint-ep04 + 리랭커 γ=0.02 441 평가 완료(244분). 런처
-  `route_reranker/run_441_disjoint_ep04.sh`, 진행 로거 `route_reranker/progress_441.sh`.
-  결과는 2절 첫 블록. 리더보드는 20주체로 재적합(`fit_leaderboard_260927.sh`).
-- 기동 시 세 층으로 검증했다: ① 실행 중 컨테이너 내부의 체크포인트를 직접
-  sha256 해서 `models/stage3_disjoint_ep04.ckpt` 와 대조(3ce4eb88…, 이미지 라벨까지
-  3중 일치), ② 드라이버가 스스로 찍는 `ROUTE RERANK: enabled=True weight=0.02
-  aggregate=max centre_dx_m=1.467 cache=1` 줄, ③ 드라이버 16개 env 가 한 조합으로만
-  집계되는지. 기본값이 weight=0.0005/mean/0.0 이라 덮였는지 확인이 필요하다.
-  **주의**: 컨테이너에서 `DriveSuprimConfig()` 를 새로 만들어 찍으면 기본값이 나온다.
-  env 는 에이전트가 설정을 만들 때 적용되므로 그 방법으로는 확인할 수 없다.
-- 오버레이 이미지가 axe-v9 과 같은지도 확인했다: env 68개 diff 0줄,
-  entrypoint/cmd/workdir/user 동일. 컨테이너가 추가로 받는 env 는 공식 2개
-  (`ALPASIM_CONTESTANT_REPLICA_INDEX/REPLICAS`) + 리랭커 5개뿐이고 사라진 env 는 없다.
-- 리랭커 실행이 axe-v9 계약과 다른 점 세 가지를 문서화했다. ①
-  `eval.video.generate_combined_video=true` — `VIDEO_OVERRIDES` 배열이 `RENDER_VIDEO`
-  와 무관하게 항상 켠다. `render_video=false` 라 렌더링 대상이 없어 무해하며,
-  이전 리랭커 441 실행들이 mp4 0개를 만든 것으로 실측 확인했다. ②
-  `eval.parse_unstructured_debug_info=true` — `RERANK:` 프레임 기록을 남기는 데
-  필요하고 런타임 후처리라 드라이버 지연에 개입하지 않는다. 리랭커 실행 4개 전부
-  동일하므로 계열 내부 비교는 일관되다. ③ 포트 19700번대(junhyeok 이 6000 블록 사용).
-- 리랭커 실행은 `ENABLE_AUTORESUME=false` 다(`RESUME=1` 이 아니면 자동). 중단되면
-  처음부터 다시 시작하므로, 중단 시 `RESUME=1` 로 재기동해야 완료분을 건너뛴다.
-- 디스크 134 GB 확보(9-26). `tools/purge-finished-runs.sh` 로 끝난 실험 15개의
-  `rollouts/` `txt-logs/` `controller/` 와 `.trash-260923/` 를 지웠다. `aggregate/`
-  (요약 JSON·롤아웃별 지표·영상), `telemetry/`, 설정 YAML 은 남겼고 요약 48개 전부
-  보존을 확인했다. `runs/` 136 GB → 2.8 GB.
-- 그 삭제는 **스로틀**이 필요했다. 전부 같은 ext4(`/dev/vda1`) 위이고 junhyeok 의
-  16-렌더러 평가가 3일째 여기에 쓰고 있었다. ionice idle + 15파일마다 2초 정지 +
-  정지마다 `axe-ep30n-*` 컨테이너 수 확인(줄면 중단). 9분 걸렸고 상대 평가는 무사했다.
-- **에이전트 권한**: 삭제 명령은 `Irreversible Local Destruction` 으로 차단된다.
-  스크립트를 쓰고 사용자가 실행하는 방식으로 갈라야 한다. `chmod +x` 를 삭제 명령과
-  같은 호출에 넣으면 그것까지 함께 거부되어 파일이 644 로 남고 `nohup` 이 조용히
-  실패한다 — chmod 는 반드시 별도 호출로.
-- 체크포인트 5개 441 평가 완료(9-25~26): aug-ep04(+리랭커), aug-ep19, aug-ep29-final,
-  disjoint-ep04, disjoint-ep29. `run_ckpt_441.sh`(체크포인트만 바뀌는 441 런처),
-  `chain_ckpt_queue.sh`(nohup 대기열: 로그 줄 대기 → 이미지 빌드 → 라벨 SHA 검증 →
-  드라이버 1개 스모크 → GPU 회수 대기 → 441), `progress_ckpt_441.sh`.
-- 셸 함정 하나 기록: 환경변수 대입 사슬 **안쪽**에 주석을 넣으면 `\` 줄이음이 끊겨
-  변수들이 자식에게 전달되지 않는 셸 지역변수가 된다. `bash -n` 은 통과한다.
+- 사용자의 전체 441 local leaderboard 요청에 따라 완료 결과를 재수집하고 34개 주체를 한 번에 적합했다.
+- `fit_leaderboard_261006.sh`: 26개 독립 로컬 실행 및 참조 8개 재적합 런처. axe-v8/merged-ep29/axe-v10 이름을 사용자 표와 맞췄다.
+- `data/local_leaderboard_261006.csv`: 사용자 요청 열, 설정 참고, 소수점 4자리/PCS 정수 반올림 표.
+- 검증: 441개 장면 일치, 34개 주체, exclusions/warnings 모두 빈 목록. 원본 평가 결과는 변경하지 않음.
 
 ## 4. 다음 단계
+
+- 이후 비교는 261006 통합 적합을 사용하고, 새 441 결과 추가 시 전체 주체를 다시 적합한다.
 
 1. `git push mine`(사용자). 커밋이 여러 개 앞서 있다.
 2. (TensorRT 를 제출본에 넣기로 하면) TRT 런타임 라이브러리를 이미지에 넣고,
@@ -227,6 +184,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
    준수 축이라 이 축을 건드리지 않는다 — 충돌 축에 직접 작용하는 항이 필요하다.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- 이번 leaderboard 정리 요청의 미결 사항 없음. 아래 항목은 이전 연구·제출 결정 기록이다.
 
 - TensorRT 를 제출 이미지에 넣을지. 모델 추론은 1.34–1.44배 빨라지지만, 공식 환경에
   실시간 마감이 있는지는 모른다. 로컬 시뮬레이터는 동기식이라 점수에 영향이 없다.

@@ -1,0 +1,35 @@
+﻿Rank,Subject,PCS,Average Scene Score,At-fault-distance (km),Rank 구간 (95%),참고
+1,axe-v9+rerank-g0.02,2683,0.7299,1.3265,1-7,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route reranker γ=0.02
+2,axe-v9,2683,0.6993,1.2982,1-7,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+3,aug-cont-ep24,2620,0.7373,1.2933,1-10,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+4,merged-ep29,2632,0.7046,1.2409,1-10,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+5,routecache-hardgate,2623,0.6852,1.1800,1-11,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route cache hard gate
+6,routecache-center,2587,0.6598,1.2111,2-12,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route cache center 1s
+7,ep29-step30330,2589,0.6886,1.1052,2-12,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+8,epzero-ep29-tuned,2577,0.6961,1.1069,2-13,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 3/0.25/3) / ego footprint 적용
+9,epzero-ep29-base,2541,0.6977,1.2761,4-14,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 적용
+10,axe-v10,2526,0.7180,1.2563,5-15,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.01
+11,aug-ep29-final,2507,0.6951,1.0837,6-15,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+12,axe-v9+rerank-g0.1,2502,0.7242,1.3820,6-16,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route reranker γ=0.1
+13,aug-ep29+rerank-g0.02,2478,0.7103,1.2846,8-17,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.02
+14,stage3_new_ep30,2455,0.6652,1.6000,9-18,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 적용
+15,aug-ep29+rerank-g0.05,2384,0.6953,1.2068,13-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.05
+16,disjoint-ep04+rerank,2399,0.6472,1.1333,12-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / disjoint-ep04 / route reranker γ=0.02
+17,disjoint-ep04,2412,0.6328,1.0540,11-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+18,axe-v8,2386,0.6742,1.4206,13-21,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 적용
+19,disjoint-ep29,2384,0.6526,1.1231,13-21,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+20,axe-ep24-no-egobox,2340,0.6396,1.0505,15-22,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 미적용
+21,aug-ep29+rerank-g0.1,2284,0.6869,1.2361,19-23,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.1
+22,aug-ep19,2258,0.6273,1.0294,20-23,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+23,flatvits-ep25,2215,0.5554,0.6841,21-23,ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3)
+24,alpamayo1,2000,0.5498,0.9163,24-24,reference 모델
+25,aug-ep04+rerank,1904,0.4308,0.4433,25-25,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep04 / route reranker γ=0.02
+26,vavam-linear,1769,0.3144,0.3470,26-26,reference 모델
+27,axe-v5,1658,0.2275,0.1287,27-28,resnet34 / 8192 vocab / mpc(lat/lon/idx = 6/0.5/3)
+28,axe-v4,1642,0.2073,0.1240,27-28,vov / 8192 vocab / mpc(lat/lon/idx = 6/0.5/3)
+29,alternative_3,1385,0.1685,0.2717,29-30,reference 모델
+30,alternative_1,1408,0.1665,0.2703,29-30,reference 모델
+31,alternative_4,1144,0.1075,0.2254,31-32,reference 모델
+32,vavam-nonlinear,1255,0.1096,0.1427,31-32,reference 모델
+33,alternative_2,600,0.0866,0.1232,33-34,reference 모델
+34,alternative_5,481,0.0576,0.0864,33-34,reference 모델
