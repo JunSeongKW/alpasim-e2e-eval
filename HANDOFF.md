@@ -1,20 +1,29 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-06 11:26 KST (Codex)
+마지막 갱신: 2026-10-06 15:10 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
+2026-10-06 Codex: axe-v9 만점 미달 클립 CSV 추출 완료. 새 평가 실행 없음.
+
 2026-10-06 Codex: 요청받은 441 통합 leaderboard CPU 재적합 완료. 새 시뮬레이션은 실행하지 않음.
 
 없음. 마지막 실행은 axe-v10 TensorRT 속도 측정(8클립 × FP32/TRT, 10-02 19:31 종료)이다.
 GPU 0-7 전부 반납됨(사용자가 이 측정에 한해 8장 전부 허락). 컨테이너 `axe-rr-trt8-*` 정리됨.
 
-- 미완: 원격 push (`git push mine`) 는 에이전트 권한으로 막혀 있어 사용자가 직접 해야 함.
+- 이전 권한 제한 기록은 해소됨: 2026-10-06 통합 leaderboard 커밋은 `git push mine` 성공.
 
 ## 2. 최근 결과
+
+### axe-v9 441개 중 만점 미달 클립 CSV (2026-10-06)
+
+- 원본: `runs/leaderboard-merged-route-ep30/aggregate/results-summary.json` (리랭커 없는 axe-v9, 클립당 1 rollout).
+- 전체 441개 중 평균 scene score < 1인 202개 추출; 만점 239개 제외.
+- 파일: `e2e_challenge/axe_local_eval/data/axe_v9_441_nonperfect_clips.csv`. 열: `clip_id`, `average_scene_score`, `clipgt_id`. 점수 오름차순, 동점이면 clip_id 순.
+- 원본 `score`를 클립별 평균하고 반올림 없이 기록. 재채점하지 않음. clip_id는 clipgt_id에서 `clipgt-` 접두어를 뺀 UUID.
 
 ### 441 전체 통합 leaderboard 갱신 (2026-10-06)
 
@@ -163,12 +172,13 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자의 전체 441 local leaderboard 요청에 따라 완료 결과를 재수집하고 34개 주체를 한 번에 적합했다.
-- `fit_leaderboard_261006.sh`: 26개 독립 로컬 실행 및 참조 8개 재적합 런처. axe-v8/merged-ep29/axe-v10 이름을 사용자 표와 맞췄다.
-- `data/local_leaderboard_261006.csv`: 사용자 요청 열, 설정 참고, 소수점 4자리/PCS 정수 반올림 표.
-- 검증: 441개 장면 일치, 34개 주체, exclusions/warnings 모두 빈 목록. 원본 평가 결과는 변경하지 않음.
+- 요청에 따라 axe-v9의 441개 평가에서 만점 미달 202개 클립을 CSV 한 개로 저장했다.
+- 결과: `e2e_challenge/axe_local_eval/data/axe_v9_441_nonperfect_clips.csv`. 원본 score 보존, 클립 ID 두 표기와 평균 점수 포함.
+- 검증: 고유 클립 441개, 클립당 1 rollout, CSV ID 중복 없음, 모든 행의 점수 < 1.
 
 ## 4. 다음 단계
+
+- 요청한 axe-v9 만점 미달 CSV 전달. 추가 실행 필요 없음.
 
 - 이후 비교는 261006 통합 적합을 사용하고, 새 441 결과 추가 시 전체 주체를 다시 적합한다.
 
@@ -184,6 +194,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
    준수 축이라 이 축을 건드리지 않는다 — 충돌 축에 직접 작용하는 항이 필요하다.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- axe-v9 클립 CSV 요청의 미결 사항 없음.
 
 - 이번 leaderboard 정리 요청의 미결 사항 없음. 아래 항목은 이전 연구·제출 결정 기록이다.
 
