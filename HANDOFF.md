@@ -1,18 +1,19 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 11:24 KST (Codex)
+마지막 갱신: 2026-10-07 11:39 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-2026-10-07 Codex: 사용자 최신 요청은 **GPU 0–7 전체**, GPU당 **81,559 MiB 이내에서 평가 시간 최소화**이다. 기존 16-worker 평가가 동작하는 동안 48-worker 전환을 검증했고, 별도 `accelerate.py`로 완료 클립을 보존하여 전환한다. AGENTS의 GPU 0–3/16-worker 기본 제한은 이번 사용자 명시 요청이 우선한다.
-- 제공된 모델 디렉토리·이미지·checkpoint·원본 추론/threshold/BEV는 그대로 유지한다. dev/441×1/MPC 1/0.25/3/채점/하모나이저/정밀도 동일.
-- 원래 카메라별 RGB RPC(`NONE`), gRPC4, 모델 batch1을 유지한다. 카메라묶음/gRPC1 시도는 취소했다. GPU당 6개 driver+renderer, 총48 rollouts/48 controllers/8 physics로 시작한다. 7개는 기존 피크 추산상 GPU 한도 초과 위험이 있어 실제48-worker 피크/속도를 확인한다.
-- 48-worker launcher PID 1879178로 전환해 완료33/미완료48을 확인했다. 첫 주행에서 GPU1이81,038 MiB(여유52 MiB)에 도달해 runtime만 잠시 pause했다. 사용자 요청으로 기본gRPC4와원래NONE 렌더링을 유지해재개한다. 모델 image/source/threshold/정밀도는 그대로이고, 기존48 renderer는 재사용해 재기동 시간을 줄인다. 완료 클립 보존, 미완료 폴더는 topology-history로 이동한다.
-- 신규 로그: `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log`, `.speed48.wizard.log`. VRAM: run 폴더 `vram-speed48.csv`, `vram-speed48-peaks.json`. PID: `.cache/stage3-5cam-441.launcher.pid`.
-- 48-worker dry run/Compose/공통 설정 비교 완료: `runs/prepare-stage3-5cam-ep05/deployment-speed48-validation.json`. 모델 변경 외 성능 비교의 공통 채점 조건은 유지하나 과거16-worker와 실행 병렬도/RPC 묶음 방식은 다르며 provenance에 두 실행 구간을 기록한다.
+2026-10-07 Codex: 사용자 요청으로 stage3_5cam_ep05_20261007의441 평가를GPU0–7 전체/각6/총48 worker로 재개 중이다. 사용자 최종 조건은81,559 MiB 내에서 시간 단축 및 기존 gRPC/렌더링 설정 유지이다. AGENTS의0–3/16-worker 제한은 이번 명시 요청이 우선한다.
+- 최종: 원본 이미지의 gRPC8, 카메라별 render_rgb/NONE, 모델batch1, driver CPU8/32GiB, dev441×1/MPC1/.25/3/하모나이저/채점/정밀도 모두 원래대로. 모델 폴더/코드/가중치/BEV/threshold .6/.4 변경 없음.
+- 원래 GPU4–7/16-worker에서 완료된33개를 보존하고408 jobs 재개. BATCH_RENDER_RGB 시도는GPU1이81,038 MiB/잔여52 MiB에 도달해 중단했다. 해당 구간 신규완료0이며 미완료48은 topology-history로 이동했다. gRPC1 시도는 사용자 요청으로 실제driver가 시작되기 전에 취소했다.
+- 실제 기존 gRPC는image Config.Env의8이다. 앞서소스 fallback4를 잘못 보고했으며 컨테이너48개가원래image env8을유지함을검증했다. CUDA 버퍼 증가의 최종 원인은 단정하지 않는다.
+- 현재launcher PID2053058(`.cache/stage3-5cam-441.launcher.pid`), 새기동11:30 KST. 로그 `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log`, `.speed48.wizard.log`. VRAM은run폴더 `vram-speed48.csv`/`vram-speed48-peaks.json`; 과거81GB peak는topology-history에보관됐다.
+- renderer 재사용을 시도했지만wizard 포트재배치(controller가19900부터/renderer19948–19995)로Docker가 재기동했다. 현재renderer48 directhealth 모두26.4.146으로응답했고runtime의마지막연결확인을기다린다. 재기동을중복실행하지않는다.
+- 최종공통설정검증: `runs/prepare-stage3-5cam-ep05/deployment-speed48-original-rpc-validation.json`. 전체simulation_config/eval/controller/driver/traffic가원래16-worker dev와완전히동일하다. 실행병렬도/서비스배치/포트만변경한다. 완료후GPU해제와 기존34+신규1 CPU joint leaderboard fit자동진행.
 
 ## 2. 최근 결과
 
@@ -197,10 +198,11 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자가 gRPC 스레드 축소의 병목 가능성을 지적하고 기존 설정 유지 요청. gRPC=1 재기동을 취소했다(신규driver는 아직 시작하지 않음). 원본 gRPC=4와 카메라별 render_rgb/NONE을 유지하고 병렬 배치만GPU0–7/각6/총48로 변경한다.
-- BATCH_RENDER_RGB에서 driver VRAM이~5962 MiB/개로 커지고 GPU1이81,038 MiB/여유52 MiB에 도달했다. 원래 NONE에서는~3356–3876 MiB/driver와GPU당4worker총~46–47GiB였으므로 묶음 전송도 취소한다. 스레드별 CUDA 버퍼/할당의 영향을 추정하며 최종 원인은 단정하지 않는다.
-- 모델 원본·source·image·precision·BEV·threshold·MPC·채점은 그대로이며 추가환경변수도없다. 기존48 renderer/scene/JIT는 유지해 재기동 시간 최소화한다. 완료33/미완료48 파일은 보관하고408 jobs를 재개한다. accelerator의 gRPC1 시도는 중단했고 신규launcher가 이어받는다.
-- 별도 accelerate.py만 수정했으며 gRPC4/NONE 배포는 원래 dev simulation_config와 완전히 동일하다. ruff/black 통과. final48 actual VRAM 확인 후 기록한다.
+- 실제 image Config.Env의ALPASIM_DRIVER_GRPC_WORKERS=8과48개 컨테이너env 일치를확인했다. 앞서4는소스fallback값을잘못보고한것으로provenance/HANDOFF/log설명을8로정정했다. 실행에는gRPC추가override가없다.
+- 사용자최종요청대로 gRPC8/NONE/모델batch1과 원래driverCPU8/32GiB를 유지한다. CUDA 모델/원본threshold/gate/BEV/MPC/score/source/image불변. onlyGPU0–7/각6/총48 병렬배치변경.
+- GPU1의81,038MiB(여유52MiB) 때문에BATCH를pause/복구했다. gRPC1 실제배포는없었고BATCH새완료도0이다. 최종441점수는모두NONE 방식이다. 완료33보존/미완료48 rename 후408 jobs재개.
+- renderer재사용시도는wizard의포트할당순서가달라져Docker재기동으로이어졌다. 이로인한startup지연을사용자에게보고했다. 현재renderer48 health확인/원래설정 전체동일검증을완료했고 실제주행재개확인중이다.
+- 최종검증 `runs/prepare-stage3-5cam-ep05/deployment-speed48-original-rpc-validation.json`, 실행/VRAM로그는동일run speed48이름. acceleratorPID2053058과기존체크포인트/이미지 고정. 자동35주체CPUfit연결유지. ruff/black통과.
 
 ## 4. 다음 단계
 
@@ -230,7 +232,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 ## 5. 미결 질문 (사용자 결정 필요)
 
 - 이번 실행의 GPU 범위/속도 우선순위는 사용자가 확정했으며 미결 질문 없음. 실제48-worker VRAM 피크와 처리량, 최종441 점수는 실행에서 확인한다. 아래 연구·제출 결정은 과거 기록.
-- 실제 CUDA 추론과 서비스/441 scenes 검증은 통과했으며 최종 점수·35주체 순위는 평가 완료 후 산출한다.
+- 사용자최종조건gRPC8/NONE유지로실행하며추가결정사항없음. 최종점수/35주체순위/실제throughput은평가완료후산출한다.
 - 원본 설정 유지 여부는 사용자가 확정했다. 별도 임계값 튜닝이나 axe-v9 gate 이식은 진행하지 않는다.
 
 - CSV 사유 추가 요청 미결 없음. 부분 점수의 물리적 원인(저속/정체 등)은 요약 지표만으로 단정하지 않음.

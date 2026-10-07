@@ -185,7 +185,7 @@ def preserve_and_record(previous, *, keep_renderers):
             "gpus": previous["gpus"],
             "workers": previous["workers"],
             "render_bundling": previous.get("render_bundling", "NONE"),
-            "driver_grpc_workers": previous.get("driver_grpc_workers", 4),
+            "driver_grpc_workers": previous.get("driver_grpc_workers", 8),
             "completed_clip_ids_at_switch": completed,
             "archive": str(archive),
         }
@@ -197,7 +197,7 @@ def preserve_and_record(previous, *, keep_renderers):
         renderers=WORKERS,
         render_bundling="NONE",
         model_batch_size=1,
-        driver_grpc_workers=4,
+        driver_grpc_workers=8,
         official_env_only=True,
         deployment_extra_env=[],
         gpu_memory_limit_mib=81559,
@@ -238,7 +238,7 @@ def start_gpu(gpu):
             "--memory",
             "32g",
             "--cpus",
-            "4",
+            "8",
             "--tmpfs",
             "/tmp:rw,nosuid,nodev,size=2g",
             "--tmpfs",
@@ -285,7 +285,7 @@ def main():
     if args.keep_renderers:
         assert all(int(row.split(",")[0]) < 65000 for row in stats.splitlines()), stats
         log(
-            "Reusing warm renderers; original four driver gRPC workers and single-camera RPCs"
+            "Reusing warm renderers; original eight driver gRPC workers and single-camera RPCs"
         )
     else:
         assert all(
@@ -356,7 +356,7 @@ def main():
         EXTRA_OVERRIDES="wizard.baseport=19900 runtime.simulation_config.render_bundling=NONE",
     )
     log(
-        "Starting 48-worker resume with original four gRPC workers and single-camera RGB requests"
+        "Starting 48-worker resume with original eight gRPC workers and single-camera RGB requests"
     )
     wizard_log = ROOT / "runs" / f"{RUN_NAME}.speed48.wizard.log"
     with wizard_log.open("a") as stream:
