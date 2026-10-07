@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 19:47 KST (Codex)
+마지막 갱신: 2026-10-07 19:50 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -9,7 +9,7 @@
 
 - 신규disjoint512 원441 시뮬레이션은19:39:40 종료/자동36fit19:41:30 완료했지만 **유효완료439+렌더러HTTP2 SETTINGS 연결시간초과2**를 발견했다. 원평가status complete는인프라2건포함이므로최종완료로보고하지않는다. 현재status infrastructure_retry_pending으로정정했다.
 - 정상439클립의score/rolloutID는그대로보존하고 `clipgt-24535266-2711-4c57-a98d-bfc024a98782`, `clipgt-44df49fe-0729-4c30-98d0-5a40f43b7b09`만같은immutable3cam image8b91/ckpt e8f879/dev/MPC1/.25/3/batch1/gRPC8/NONE로재평가한다. GPU0,1각1driver/renderer·worker2로두클립을병렬처리한다. 원48GPU컨테이너는자기범위cleanup완료/모든GPU0MiB확인. 다른모델/클립재평가없음.
-- 복구코드 `e2e_challenge/axe_local_eval/retry_disjoint512_infrastructure.py`, 별도run `leaderboard-vits512-disjoint-baseline-ep04-20261007-infra-retry`, prefix axe-disjoint512-ep04-retry, ports7600/7601/wizard24000. 이커밋후nohup+독립SID로즉시실행한다. 원run/status.json은복구상태를추적하며재시도로그 runs/<retry>.progress.log 및 .wizard.log. 실패기록과초기36fit은원run/attempt-history/initial-two-rpc-failures/에보존한다.
+- 복구코드 `e2e_challenge/axe_local_eval/retry_disjoint512_infrastructure.py`, 별도run `leaderboard-vits512-disjoint-baseline-ep04-20261007-infra-retry`, prefix axe-disjoint512-ep04-retry, ports7600/7601/wizard24000. 19:48 KST nohup+독립SID로기동완료, PID3482415(PPID1/SID3482415); 새driver2개 strict CUDA-ready 및native2-clip시뮬레이션진행확인. 원run/status.json은복구상태를추적하며재시도로그 runs/<retry>.progress.log 및 .wizard.log. 실패기록과초기36fit은원run/attempt-history/initial-two-rpc-failures/에보존한다.
 - 재시도2개성공후439원점수보존검증/누락중복없음/원채점설정일치 검증하고 공식aggregation으로같은441를재집계한다. 기존 preliminary36fit을보존한뒤36fit을다시계산하며결과경로 runs/leaderboard-36-with-vits512-disjoint-ep04/local_leaderboard.csv 유지. 물리실패0점도채점결과로유지하며점수에따른재시도/선택없음.
 - 사용자가439개결과를먼저요청했다. `runs/leaderboard-vits512-disjoint-baseline-ep04-20261007/interim_439_results.json`: 평균.6005425957/거리.975020km/만점210/0점138/부분91/rear69/at-fault31/offroad39/corridor68. 같은439axe-v9 평균.6981824171/거리1.297145/후방86/만점238/0점97/부분104; baseline역사적RPC1은원점수0을보존하고비교표각주에표시한다. 기존5cam같은439 mean.428972/거리.450613/rear150.
 - 이전5cam441/35fit 및후방6영상은완료상태를유지하며이번복구와섞지않는다. 원본모델/체크포인트/원리더보드변경없음.
@@ -19,6 +19,12 @@
 - 19:46 KST 정상439개의중간결과: disjoint512 mean.6005/at-fault-distance.9750km/perfect210(47.84%)/zero138(31.44%)/partial91(20.73%)/rear69(15.72%)/atfault31(7.06%)/offroad39(8.88%)/corridor68(15.49%). 같은439axe-v9 mean.6982/거리1.2971/후방86(19.59%), 신규점수 개선82/악화131/동률226. 모델후방충돌은줄었으나책임충돌17→31·corridor40→68으로평균점수는낮다. PCS/순위는인프라2복구후최종36fit값을보고한다.
 
 - 신규disjoint512 종료시각문의(17:29): 완료0이며48개진행중이므로 확정성능점수는 아직없다. 첫묶음각worker의실제Session/InitialStep/StepEvent에서 진행률·walltime·최근5분속도로ETA산출, 사용자예상20:10전후/19:45–20:30(리더보드약5분포함). 모든GPU100% 및프로세스정상확인, 중단/설정변경없음.
+
+### 같은439클립의3개모델중간비교 (2026-10-07 19:50)
+
+- 비교UUID집합을 comparison_439_clip_ids.txt에저장하고3모델각439행/동일UUID를검증했다. CSV `runs/leaderboard-vits512-disjoint-baseline-ep04-20261007/three_model_comparison_439.csv`. axe-v9 / 신규disjoint3cam / 직전5cam 순 mean .6982/.6005/.4290, atfault거리1.2971/.9750/.4506, rear86/69/150.
+- perfect238/210/65,zero97/138/126,partial104/91/248,atfault17/31/37,offroad39/39/51, raw GT4m corridor40/71/48. 원인단일분류corridor68/39와raw71/48을혼용하지않고지표별중복가능을명시한다. axe-v9역사적RPC1의0점은원점수로보존하며그클립의충돌지표미상을명시한다.
+- 신규모델은5cam보다mean+.1716/rear81개감소,axe-v9보다mean−.0976/rear17개감소이나책임충돌/GT이탈은더많다. camera만의인과효과로해석하지않는다. PCS/순위는2클립복구후441 최종36fit에서제공한다.
 
 ### 5카메라 원본 모델 최종 441 결과 (2026-10-07)
 
@@ -235,13 +241,13 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 전체완료문의에서439_complete와summary441의차이를발견했다. 실패2는모델실패가아닌renderer gRPC UNAVAILABLE/HTTP2 SETTINGS timeout이며0점placeholder였다. 원GPUjob과초기CPU36fit은19:41종료했다. 사용자에게439정상/2연결오류/동일설정2개복구를알렸고439우선결과요청에맞춰같은439 비교통계를저장했다.
-- repair helper가원439점수/ID/score_metrics를보존하고2인프라클립만1회재시도한다. 실패기록·초기집계·예비36fit을보존하고성공후공식441집계/36fit을재실행한다. 새36leaderboard검증은신규row에AioRpcError가있으면최종fit을거부한다.
-- 5개tests에서기존점수변경/클립누락/중복/인프라미해결거부와물리실패0점허용을검증했다. Black/Ruff 통과. 이번연구비교는train-val분리3cam모델의성능/상황별입력필요성비교자료이며카메라만의인과효과라고주장하지않는다.
+- 같은439개만사용한3모델표요청을수행했다. 439 UUID집합/원행/모델별점수/비율/거리ratio를검증하고원run에 three_model_comparison_439.csv/interim_439_results.json/comparison_439_clip_ids.txt 저장. 신규mean.6005는axe-v9.6982보다낮고5cam.4290보다높으며rear69는각86/150보다적다.
+- GT corridor실패사유개수와rawmetric개수가다른것을검증해비교표는모든충돌·이탈을동일한rawmetric기준으로정리했다(40/71/48). 지표별중복가능과v9역사적RPC1의0점/충돌미상을명시한다. 신규439의건수perfect210/zero138/partial91,0점물리원인31/39/68은그대로다.
+- 오류2개재시도launch PID3482415(독립SID/PPID1),GPU0,1·각1driver/renderer·worker2 strict CUDA-ready/실제native진행확인했다. 모델·채점은고정하고2클립만복구한다. 초기48-worker start_gpu 로그가고정문구six였으므로실제REPLICAS를출력하도록수정했다(점수·실행구성변경없음),ruff통과.
 
 ## 4. 다음 단계
 
-- 이번복구코드를독립SID/nohup실행하고2개실제기동확인후사용자에게439개표를제공한다. 정상439는재평가하지않는다. 이후run/status.json과retry로그에서2개성공→원441집계→36fit완료를확인하고최종행과CSV를보고한다.
+- 복구PID3482415가2개실제진행중이다. 사용자에게같은439개3모델비교표를제공한다. 정상439는재평가하지않는다. 이후run/status.json과retry로그에서2개성공→원441집계→36fit완료를확인하고최종행과CSV를보고한다.
 
 - 다음종료예측은실제 _complete 누적과최근30~60분완료율을사용하고 초기0완료ETA를확정값처럼반복하지않는다. 현재job은그대로유지한다.
 

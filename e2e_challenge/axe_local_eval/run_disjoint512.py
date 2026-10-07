@@ -185,7 +185,7 @@ def start_gpu(gpu):
             check=True,
             stdout=subprocess.DEVNULL,
         )
-    log(f"Started six drivers on GPU {gpu}")
+    log(f"Started {REPLICAS} driver replicas on GPU {gpu}")
 
 
 def stop_owned():
