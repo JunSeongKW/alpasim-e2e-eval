@@ -76,11 +76,13 @@ def acquire_lock():
     except BlockingIOError:
         old_pid = int((ROOT / ".cache/stage3-5cam-441.launcher.pid").read_text())
         command = Path(f"/proc/{old_pid}/cmdline").read_bytes()
-        assert b"e2e_challenge/5cam_eval/run.sh" in command
+        original = b"e2e_challenge/5cam_eval/run.sh" in command
+        assert original or b"e2e_challenge/5cam_eval/accelerate.py" in command
         assert os.getpgid(old_pid) == old_pid
-        log(f"Stopping original launcher process group {old_pid} for topology change")
-        os.killpg(old_pid, signal.SIGTERM)
-        time.sleep(3)
+        log(f"Stopping previous evaluation launcher process group {old_pid}")
+        if original:
+            os.killpg(old_pid, signal.SIGTERM)
+            time.sleep(3)
         try:
             os.killpg(old_pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -120,11 +122,22 @@ def owned_containers():
     return sorted(set(names))
 
 
-def stop_owned(archive):
+def stop_owned(archive, *, keep_renderers=False):
     names = owned_containers()
+    if keep_renderers:
+        names = [name for name in names if f"{RUN_NAME}-renderer-" not in name]
     if not names:
         return
     log("Stopping only this evaluation's containers: " + ", ".join(names))
+    for name in names:
+        if "-runtime-" in name:
+            paused = output(
+                ["docker", "inspect", name, "--format", "{{.State.Paused}}"]
+            )
+            if paused == "true":
+                subprocess.run(
+                    ["docker", "unpause", name], check=True, stdout=subprocess.DEVNULL
+                )
     archive.mkdir(parents=True, exist_ok=True)
     for name in names:
         if name.startswith(PREFIX):
@@ -144,14 +157,14 @@ def stop_owned(archive):
                 raise RuntimeError(result.stderr)
 
 
-def preserve_and_record(previous):
+def preserve_and_record(previous, *, keep_renderers):
     stamp = datetime.now(KST).strftime("%Y%m%d-%H%M%S")
     archive = RUN / "topology-history" / stamp
     archive.mkdir(parents=True)
     for p in RUN.iterdir():
         if p.is_file() and p.suffix in (".json", ".yaml"):
             shutil.copy2(p, archive / p.name)
-    stop_owned(archive / "driver-logs")
+    stop_owned(archive / "driver-logs", keep_renderers=keep_renderers)
     completed = sorted(
         p.parent.parent.name for p in (RUN / "rollouts").glob("*/*/_complete")
     )
@@ -172,6 +185,7 @@ def preserve_and_record(previous):
             "gpus": previous["gpus"],
             "workers": previous["workers"],
             "render_bundling": previous.get("render_bundling", "NONE"),
+            "driver_grpc_workers": previous.get("driver_grpc_workers", 4),
             "completed_clip_ids_at_switch": completed,
             "archive": str(archive),
         }
@@ -183,6 +197,10 @@ def preserve_and_record(previous):
         renderers=WORKERS,
         render_bundling="BATCH_RENDER_RGB",
         model_batch_size=1,
+        driver_grpc_workers=1,
+        official_env_only=False,
+        deployment_extra_env=["ALPASIM_DRIVER_GRPC_WORKERS=1"],
+        gpu_memory_limit_mib=81559,
         renderer_camera_rpc_batch=6,
         execution_phases=history,
         throughput_priority_user_authorized=True,
@@ -235,6 +253,8 @@ def start_gpu(gpu):
             f"ALPASIM_CONTESTANT_REPLICA_INDEX={index}",
             "-e",
             f"ALPASIM_CONTESTANT_REPLICAS={WORKERS}",
+            "-e",
+            "ALPASIM_DRIVER_GRPC_WORKERS=1",
             IMAGE,
         ]
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
@@ -244,6 +264,7 @@ def start_gpu(gpu):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--keep-renderers", action="store_true")
     args = parser.parse_args()
     os.chdir(ROOT)
     previous = check()
@@ -252,7 +273,7 @@ def main():
     lock = acquire_lock()
     assert lock is not None
     (ROOT / ".cache/stage3-5cam-441.launcher.pid").write_text(str(os.getpid()) + "\n")
-    preserve_and_record(previous)
+    preserve_and_record(previous, keep_renderers=args.keep_renderers)
     stats = output(
         [
             "nvidia-smi",
@@ -263,10 +284,14 @@ def main():
         ]
     )
     assert len(stats.splitlines()) == 8
-    assert all(
-        int(row.split(",")[0]) < 4000 and int(row.split(",")[1]) <= 5
-        for row in stats.splitlines()
-    ), stats
+    if args.keep_renderers:
+        assert all(int(row.split(",")[0]) < 65000 for row in stats.splitlines()), stats
+        log("Reusing warm renderer containers; restarting drivers with one gRPC worker")
+    else:
+        assert all(
+            int(row.split(",")[0]) < 4000 and int(row.split(",")[1]) <= 5
+            for row in stats.splitlines()
+        ), stats
     for port in range(PORT, PORT + WORKERS):
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", port))

@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 10:59 KST (Codex)
+마지막 갱신: 2026-10-07 11:20 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -10,7 +10,7 @@
 2026-10-07 Codex: 사용자 최신 요청은 **GPU 0–7 전체**, GPU당 **81,559 MiB 이내에서 평가 시간 최소화**이다. 기존 16-worker 평가가 동작하는 동안 48-worker 전환을 검증했고, 별도 `accelerate.py`로 완료 클립을 보존하여 전환한다. AGENTS의 GPU 0–3/16-worker 기본 제한은 이번 사용자 명시 요청이 우선한다.
 - 제공된 모델 디렉토리·이미지·checkpoint·원본 추론/threshold/BEV는 그대로 유지한다. dev/441×1/MPC 1/0.25/3/채점/하모나이저/정밀도 동일.
 - 새 배치 대상은 렌더러의 같은 시각 6개 카메라 RPC(`BATCH_RENDER_RGB`)이다. 모델 batch=1은 원본 유지. GPU당 6개 driver+renderer, 총48 rollouts/48 controllers/8 physics로 시작한다. 7개는 기존 피크 추산상 GPU 한도 초과 위험이 있어 실제48-worker 피크/속도를 확인한다.
-- 현재 원래 launcher PID 1755493이 실행 중이며 신규 launcher는 lock 획득 시 본인 기존 process group 및 정확한 run project/driver names만 정지한다. 완료 `_complete` 클립 보존, 미완료 폴더는 `topology-history/`로 이동하며 대량 삭제하지 않는다.
+- 48-worker launcher PID 1879178로 전환해 완료33/미완료48을 확인했다. 첫 주행에서 GPU1이81,038 MiB(여유52 MiB)에 도달해 runtime만 잠시 pause했다. 원본 driver의 ALPASIM_DRIVER_GRPC_WORKERS=1(기본4)을 적용해 재개한다. 모델 image/source/threshold/정밀도는 그대로이고, 기존48 renderer는 재사용해 재기동 시간을 줄인다. 완료 클립 보존, 미완료 폴더는 topology-history로 이동한다.
 - 신규 로그: `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log`, `.speed48.wizard.log`. VRAM: run 폴더 `vram-speed48.csv`, `vram-speed48-peaks.json`. PID: `.cache/stage3-5cam-441.launcher.pid`.
 - 48-worker dry run/Compose/공통 설정 비교 완료: `runs/prepare-stage3-5cam-ep05/deployment-speed48-validation.json`. 모델 변경 외 성능 비교의 공통 채점 조건은 유지하나 과거16-worker와 실행 병렬도/RPC 묶음 방식은 다르며 provenance에 두 실행 구간을 기록한다.
 
@@ -197,11 +197,11 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자 명시 요청으로 GPU 0–7과 81,559 MiB 한도에서 평가 시간 단축을 우선한다. 원래 실행 중 shell은 수정하지 않고 `e2e_challenge/5cam_eval/accelerate.py`를 추가했다.
-- 48 driver/worker/renderer, GPU당6, 48 controller/8 physics 및 BATCH_RENDER_RGB를 적용한다. 기존 완료 클립은 보존, 미완료 클립은 이름 변경 이동 후 autoresume; 공유 머신의 다른 작업은 정리 대상에서 제외한다.
-- 원본 이미지 ID/checkpoint/모델 설정/정밀도/추론 batch1 유지. dev441/MPC/force-GT/하모나이저/채점/traffic/driver config 동일성을 dry run으로 대조했다. 배치 렌더 이벤트/서비스 테스트13개와 ruff/black 통과. 실제 renderer의 batch_render_rgb 지원도 확인했다.
-- 검증 경로 `runs/prepare-stage3-5cam-ep05/deployment-speed48-validation.json`, 신규 진행 로그 `.speed48.progress.log`, VRAM 10초 telemetry. 완료 후 GPU 해제와 기존34+신규1 CPU joint leaderboard 적합은 자동 진행한다.
-- 연구 질문은 상황별 후방 입력 필요성을 분석할 441 주행 기록을 확보하는 것이다. 이번 변경 자체는 모델 실험이 아닌 평가 처리량 개선이다.
+- 48개의 CUDA driver와48 renderer/8 physics/48 controller/runtime 기동 및408 jobs/기존33완료 보존/48 active rollout을 확인했다. 0–7 전체에서 실제 batch_render_rgb:6 cameras 호출과 GPU연산이 진행됐다.
+- 기본 gRPC4에서 driver VRAM이약5962 MiB까지 증가해 GPU1 사용량81,038 MiB/여유52 MiB에 도달했다. OOM으로 평가가 실패하는 것을 막으려고 runtime을 잠시 pause했다. 아직 신규완료0/기존완료33이다.
+- 원본 driver에 이미 구현된 ALPASIM_DRIVER_GRPC_WORKERS=1만 추가하는 배포 변경으로48 병렬을 유지한다. CUDA workspace가 여러 RPC스레드에 생기는 현상을 줄인다. 제공된 모델 폴더·원본 gate/threshold/BEV·추론 source·precision·이미지를 바꾸지 않는다.
+- accelerate.py --keep-renderers로 본인 이전 launcher만 대체하고48 renderer/scene/JIT cache를 유지하며, driver/physics/controller/runtime만 재기동한다. 미완료파일은 rename 보관, completed33 재사용. 실행 구간과 gRPC worker 수/추가환경변수는 provenance에 기록한다. 종료 시 GPU 해제 및35 leaderboard fit 자동.
+- renderer 내 serve.py를 읽어 batch RGB가 같은 render_camera_request/difix/ego mask를 순서대로 호출하는 것임을 확인했다. byte 변경 없음. 검증/VRAM 경로는 prepare-stage3-5cam-ep05/deployment-speed48-runtime.json 및 실행폴더 vram-speed48.csv/peaks.json이다. ruff/black 통과.
 
 ## 4. 다음 단계
 
