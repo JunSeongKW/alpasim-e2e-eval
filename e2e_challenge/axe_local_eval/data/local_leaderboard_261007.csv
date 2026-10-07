@@ -1,0 +1,36 @@
+﻿Rank,Subject,PCS,Average Scene Score,At-fault-distance,Rank 구간,참고
+1,axe-v9+rerank-g0.02,2716,0.7299,1.3265,1-7,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route reranker γ=0.02
+2,axe-v9,2721,0.6993,1.2982,1-7,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+3,aug-cont-ep24,2646,0.7373,1.2933,1-10,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+4,merged-ep29,2662,0.7046,1.2409,1-10,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+5,routecache-hardgate,2656,0.6852,1.1800,1-10,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route cache hard gate
+6,routecache-center,2620,0.6598,1.2111,2-12,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route cache center 1s
+7,epzero-ep29-tuned,2606,0.6961,1.1069,2-12,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 3/0.25/3) / ego footprint 적용
+8,ep29-step30330,2611,0.6886,1.1052,2-12,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+9,epzero-ep29-base,2568,0.6977,1.2761,4-14,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 적용
+10,axe-v10,2554,0.7180,1.2563,5-14,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.01
+11,axe-v9+rerank-g0.1,2518,0.7242,1.3820,7-16,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / axe-v9 / route reranker γ=0.1
+12,aug-ep29-final,2528,0.6951,1.0837,6-16,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+13,aug-ep29+rerank-g0.02,2497,0.7103,1.2846,8-17,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.02
+14,stage3_new_ep30,2478,0.6652,1.6000,9-18,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 적용
+15,axe-v8,2403,0.6742,1.4206,13-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 적용
+16,aug-ep29+rerank-g0.05,2403,0.6953,1.2068,13-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.05
+17,disjoint-ep04+rerank,2421,0.6472,1.1333,12-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / disjoint-ep04 / route reranker γ=0.02
+18,disjoint-ep29,2406,0.6526,1.1231,13-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+19,disjoint-ep04,2436,0.6328,1.0540,11-20,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+20,axe-ep24-no-egobox,2359,0.6396,1.0505,16-22,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3) / ego footprint 미적용
+21,aug-ep29+rerank-g0.1,2293,0.6869,1.2361,19-23,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep29-final / route reranker γ=0.1
+22,aug-ep19,2275,0.6273,1.0294,20-23,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용
+23,flatvits-ep25,2235,0.5554,0.6841,21-23,ViT-S / 4096 vocab / mpc(lat/lon/idx = 6/0.5/3)
+24,alpamayo1 ⚓,2000,0.5498,0.9163,24-25,reference 모델
+25,stage3-5cam-ep05,1894,0.4316,0.4516,25-26,"bevformer_m + ViT-S / 카메라 5개(L1/L0/F0/R0/R1) / 4096 vocab / BEV 56×112(-56~56m, -28~28m) / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / Stage 3 ep05 / 원본 임계값(drivable/agent = 0.6/0.4)"
+26,aug-ep04+rerank,1941,0.4308,0.4433,24-26,bevformer_m + ViT-S / 4096 vocab / mpc(lat/lon/idx = 1/0.25/3) / ego footprint 적용 / aug-ep04 / route reranker γ=0.02
+27,vavam-linear,1790,0.3144,0.3470,27-27,reference 모델
+28,axe-v5,1648,0.2275,0.1287,28-29,resnet34 / 8192 vocab / mpc(lat/lon/idx = 6/0.5/3)
+29,axe-v4,1621,0.2073,0.1240,28-29,vov / 8192 vocab / mpc(lat/lon/idx = 6/0.5/3)
+30,alternative_3,1389,0.1685,0.2717,30-31,reference 모델
+31,alternative_1,1411,0.1665,0.2703,30-31,reference 모델
+32,alternative_4,1171,0.1075,0.2254,32-33,reference 모델
+33,vavam-nonlinear,1250,0.1096,0.1427,32-33,reference 모델
+34,alternative_2 ⚓,600,0.0866,0.1232,34-35,reference 모델
+35,alternative_5,486,0.0576,0.0864,34-35,reference 모델
