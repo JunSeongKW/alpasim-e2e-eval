@@ -1,18 +1,18 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 20:00 KST (Codex)
+마지막 갱신: 2026-10-08 08:45 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **신규 disjoint512의441평가·공식집계·36주체리더보드 모두19:56:03 KST완료. 실행중인평가없음.** 원launcher3038565/복구3482415는종료했고본job컨테이너해제및GPU0–7=0MiB확인. 원441평가를다시시작하지않는다.
-- 최종441unique/클립당완료rollout1/_complete441/metrics441/인프라오류0. 정상439의원rolloutID·score·score_metrics 유지검증통과. renderer연결오류2만동일image8b91/ckpt e8f879/dev/MPC1/.25/3/batch1/gRPC8/NONE에서재시도했다. `24535266...`는1점, `44df49fe...`는0점(GT corridor측면이탈)이며0점도그대로채점했다. 최초RPC기록/집계/예비36fit은원run/attempt-history/initial-two-rpc-failures/에보존한다.
-- 새모델최종PCS2353/Rank21/95%15–23/mean.6000866202/atfault거리.9762702198km. **같은36fit** axe-v9 PCS2704/Rank2/1–7/mean.6993/거리1.2982,5camPCS1896/Rank26/26–27/mean.4316/거리.4516. 과거17/34/35별도fit PCS와혼용하지않는다.
-- 결과원본 `runs/leaderboard-vits512-disjoint-baseline-ep04-20261007/aggregate/results-summary.json`, 36fit `runs/leaderboard-36-with-vits512-disjoint-ep04/local_leaderboard.csv`, tracked36CSV `e2e_challenge/axe_local_eval/data/local_leaderboard_261007_disjoint512.csv` (기존35CSV보존). 세모델441비교CSV/JSON 및paired441CSV는원run/three_model_comparison_441.*와three_model_paired_441.csv. final_result_audit.json/infrastructure_retry_audit.json에검증근거저장.
-- 모델/원체크포인트/원5cam소스수정없음. 새체크포인트는axe-v9환경에서가중치만교체했고초기1344키·shape/strictGPUforward/known-valueMSDA/동일dev채점검증을유지했다. 모든새ASL보존.
-- 이전5cam441/35fit 및후방6개비교영상은완료. `/home/kaist5/data/junseong/stage3_5cam_rear_response_20261007/` 유지. 신규3cam은train/val분리통제모델비교자료이며카메라만의인과효과로해석하지않는다.
+- **10-08 신규 3카메라 번들 3개 441 평가 (GPU 0–7, 48 worker, 순차 실행)** — 사용자 지시: 4개(실제 3개 모델, vitl 은 분할 4파일 이상) 전부 평가, GPU 0–7, 81 GB 이하, 최대한 빠르게, 모델 밖 조건은 axe-v9 과 동일.
+  1. `stage3-vits512-6layer` 실행 중 (08:37 시작, launcher pid 795216). 진행: `runs/leaderboard-stage3-vits512-6layer-20261008/status.json`, 로그 `runs/leaderboard-stage3-vits512-6layer-20261008.progress.log`.
+  2. `stage3-vits768-3layer` 대기열 (chain pid 909221): 1번 complete 후 1번 VRAM 피크로 GPU당 드라이버 6/5 결정 → GPU 4 GB 미만 확인 후 자동 시작. 로그 `runs/leaderboard-stage3-vits768-3layer-20261008.progress.log`.
+  3. `stage3-vitl512-3layer-lr1` 번들 전송 미완: part-aa/ab/ac(각 950 MiB) 도착, zstd 스트림 불완전. 감시 pid 902108 (`runs/await-vitl512-bundle.log`) 가 완성 시 압축 해제+SHA256SUMS 검증. 이후 prepare→smoke→chain 필요.
+- junhyeok 의 python 프로세스가 GPU 0–7 각 ~3 GB 상주(건드리지 않음). 81 GB 한도 계산에 포함.
+- 컨테이너 접두어 `axe-pkg3-*`. 다른 연구원 작업과 무관.
 
 ## 2. 최근 결과
 
@@ -249,14 +249,16 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자완료확인/최종재집계요청에441및36fit모두19:56:03완료를검증했다. 신규인프라오류0/원439점수와ID보존/2재시도1점·GT이탈0점/고유441각1rollout/manifest36/경고제외0/모든GPU컨테이너해제확인했다.
-- 같은441의3모델평균·거리·점수분포·충돌·이탈을원집계에서계산하고같은36fitPCS/순위와대조했다. comparison_441CSV/JSON,paired441 CSV, final_result_audit.json 저장. raw충돌·이탈중복과v9기존RPC1을표시하고439중간값과최종441을혼용하지않는다.
-- tracked `local_leaderboard_261007_disjoint512.csv` 작성(36행/원래7열/풀참고/정수구간),기존35CSV보존. EXPERIMENTS.md에신규완료행append. 신규최종PCS2353/Rank21/mean.6001/거리.9763/rear69;같은36fitv9PCS2704/Rank2/5camPCS1896/Rank26.
+- `e2e_challenge/pkg3cam_eval/` 신설: 3카메라 AXEv1.0-NuRec 번들을 이미지 빌드 없이 axe-v9 이미지(digest 85134c1e) 위에 read-only bind-mount 로 평가. 번들 navsim/nurec_pf, 체크포인트, 번들 stage-3 YAML 을 합성한 config.json, 그리고 5cam_eval 어댑터(per-session ego_geom, axe-v9 MSDA 설정)를 3카메라 layout 으로 쓴 drivesuprim_challenge.
+- 모델↔config 매핑(체크포인트 텐서 shape 로 확인): vits512_6layer→`..._stage3_nurec_bev6`(BEV encoder 6층, 1500 키), vits768_3layer→`..._stage3_nurec_img768`(768×384, raw_fisheye; 키·shape 는 axe-v9 과 동일), vitl512_3layer_lr1→`..._stage3_nurec_vitl_img512_lr1`(DINOv2 ViT-L). vocab sha 동일(68948af7). 번들 임계값 0.6/0.4 유지(5cam 때 사용자 확정 방침).
+- img768 은 학습 시 raw f-theta 에서 K=(377,377,256,128)×1.5 가상 pinhole 로 직접 렌더한다. 드라이버에 `K565P5_768X384` 프로필을 추가(add_pinhole_profile.py). 실제 usdz 프레임으로 학습 렌더러 vs 드라이버 렌더 비교: 768 에서 PSNR 87.7–89.3 dB, MAE ~1e-4, 2레벨 초과 픽셀 0, projection 상대차 ≤5e-7 (512 대조군과 동일 수준). `runs/prepare-stage3-vits768-3layer-20261008/raw_fisheye_check/`.
+- 두 vits 번들 GPU smoke 통과(strict missing=0/unexpected=0, BEV 커버 99.1%, ego_geom 반영, 유한 출력). vitl 은 `bevformer_vit_ckpt`(da_vitl16.pth) 를 비우도록 compose_config 에 반영(사전학습 가중치 로드 방지; 가중치는 stage-3 체크포인트에서 strict 로드).
+- 실행 계약: dev, 441, 1 rollout, MPC 1/0.25/3, batch1, reranker 없음, NONE bundling, rollouts 보존 — 10-07 disjoint512(48 worker) 와 동일.
 
 ## 4. 다음 단계
 
-- 현재평가는전부끝났다. 원441/2retry/36fit을재시작하지않는다. 이후모델비교는최종441및같은36fit을사용한다. 439중간표는이력으로보존하고구별한다.
-- 사용자에게최종3모델표와441비교CSV/전체36리더보드CSV를제공한다. 새ASL은보존했으므로추후명시적영상/행동분석요청시재활용한다. 기존5cam원본·v9역사적점수는임의수정하지않는다.
+- 6layer 완료 → 768 자동 시작 확인. vitl 번들 완성 시 `MODEL=vitl512_3layer_lr1 e2e_challenge/pkg3cam_eval/prepare.sh` → `run_pkg3cam.py --model vitl512_3layer_lr1 --smoke <gpu>` (smoke 의 peak 로 드라이버 메모리 확인) → `chain_after.sh leaderboard-stage3-vits768-3layer-20261008 vitl512_3layer_lr1 <extra MiB>`.
+- 인프라(RPC) 실패 클립이 있으면 10-07 infra-retry 방식으로 재시도 후, `pkg3cam_leaderboard.py <완료 모델들>` 로 36+N 공동 적합 → 사용자 형식 CSV.
 
 ## 5. 미결 질문 (사용자 결정 필요)
 
