@@ -1,17 +1,17 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 09:59 KST (Codex)
+마지막 갱신: 2026-10-07 10:23 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-2026-10-07 Codex: `stage3_5cam_ep05_20261007`의 441 평가 환경 준비. GPU 평가는 아직 실행하지 않음.
+2026-10-07 Codex: 사용자 요청으로 `stage3_5cam_ep05_20261007`의 441 평가를 GPU 4–7에서 기동했다. 현재 16개 드라이버를 로딩 중이다.
 - 사용자 확정 조건: 제공된 모델 디렉토리의 원래 설정과 추론 코드를 보존한다. axe-v9 내부 설정으로 통일하지 않는다. 공통 조건은 외부 AlpaSim 평가 계약이다.
 - 전용 이미지: `alpasim-e2e-drivesuprim-stage3:5cam-ep05-20261007`.
-- GPU 4–7은 다른 `axe-rlreward-*` 작업이 점유 중. 해당 컨테이너/프로세스는 건드리지 않음. 0–3 사용 권한 없음.
-- 사용자 요청은 환경 준비이며 대기 프로세스는 자동으로 띄우지 않았다. `run.sh --wait`로 GPU 대기 후 실행할 수 있음.
+- 실행 직전 GPU 4–7이 모두 0 MiB/0%인 것을 확인했다. 다른 작업을 중단하지 않았으며 0–3은 사용하지 않는다.
+- 분리된 세션의 launcher PID `1755493` (`.cache/stage3-5cam-441.launcher.pid`), 기동 2026-10-07 10:22 KST. 로그: `runs/leaderboard-stage3-5cam-ep05-20261007.progress.log`, driver 로그: 동일 run 폴더의 `driver-start.log`. 중복 실행하지 않는다.
 
 ## 2. 최근 결과
 
@@ -26,6 +26,8 @@
 - 동일 441 USDZ에 후방 카메라 보정/촬영시각이 모두 존재함. offline NAVSIM의 418 유효 클립만 사용하는 방식으로 줄이지 않았다.
 - GPU 없는 CPU에서 strict checkpoint(missing=0/unexpected=0), 학습/실시간 영상 보정, 카메라 순서·누락·동기화, 실제 forward의 유한한 40×3 출력 확인. 최종 이미지 재검증 기록: `runs/prepare-stage3-5cam-ep05/cpu_validation.json`, `cpu-validation.log`, `scene_audit.json`, `evaluation_config.yaml`, `image-id.txt`. `original_model_integrity.json`에는 원본 소스 368개 파일의 바이트 일치 및 경로/추론 모드/use_route 외에는 YAML 값 차이가 없음을 기록했다.
 - 원본 설정을 보존한 최종 이미지에서 protobuf 세션/5개 실시간 PNG 콜백 및 실제 CPU forward 재검증 통과. `run.sh --check` 성공, GPU 점유 시 신규 실행을 exit75로 중단하며 run 폴더/드라이버가 생성되지 않음. leaderboard validator는 누락/중복 rollout/결측 score를 거부하는 것도 확인했고 기존 evaluator 테스트3개, ruff/black/bash 문법 검사를 통과했다.
+- 즉시 실행 전 재검토(2026-10-07): 원본 전체 SHA256SUMS 재검증 성공. 실제 실행 스크립트 dry run과 Docker Compose 문법 검증을 통과했으며 441개 renderer-mount USDZ 링크/16 driver·worker·renderer·controller endpoints/MPC 1/0.25/3 일치를 확인했다. 이미지 3종 및 renderer cache 2762 MiB가 모두 로컬에 있다. 디스크 여유 1052.5 GiB, 포트 7160–7175/19900–19989와 신규 run 경로가 비어 있었다. `uv` wizard·leaderboard CLI는 offline 기동된다. 증거: `runs/prepare-stage3-5cam-ep05/deployment_validation.json`, `deployment-dryrun.log`, `deployment-dryrun/`.
+- 실제 image entrypoint도 GPU 없이 검증: 평가와 같은 read-only/cap-drop ALL/no-new-privileges/32 GiB/8 CPU/tmpfs 2 GiB 조건에서 strict checkpoint 로드 및 실제 gRPC get_version 성공. 임시 CPU 컨테이너 하나만 정확한 이름으로 종료/제거했다. 증거: `driver_deployment_validation.json`, `driver-readonly-startup.log`.
 - `run.sh`: 4–7만 사용, 각 4 replicas(총16), 441×1 rollout, dev, lat/lon/idx=1/0.25/3, no video, FP32(기존 내부 ViT AMP 유지), reranker 없음. 원본 rollout 보존. GPU 점유/이미지 변경/결과 덮어쓰기 거부, `--resume` 제공.
 - `leaderboard.py`: 기존 독립 local26+reference8을 `existing_subjects.json`에 고정; 34개 동일 441 입력 확인. 완료 후 신규 `stage3-5cam-ep05`와 총35개를 CPU에서 ZOIB 재적합(seed42/1000epochs/16particles, rank MC100000/seed0). 결과 `runs/leaderboard-35-with-stage3-5cam-ep05/local_leaderboard.csv`, `capability_ranking.csv`, `paired_with_axe_v9.txt`.
 - 새 모델은 5카메라뿐 아니라 BEV 종방향 -56~56m, 격자56×112, key/value28×56, stage3 ep05 및 제공된 gate 소스/threshold도 바뀌었다. 동일 평가 계약에서 모델 구성 전체를 비교하며, 카메라 수만의 효과로 해석하지 않는다. 연구 질문과의 연결은 상황별 후방 입력 필요성을 분석할 441 주행 기록을 확보하는 데 있다.
@@ -193,17 +195,18 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자는 모델 입력만의 효과를 위해 내부 값을 axe-v9로 통일하는 대신, 제공된 5카메라 모델 구성 전체를 그대로 평가하도록 명확히 했다. 원본 디렉토리는 이전부터 수정하지 않았으며 전체 SHA256SUMS 검증으로 확인했다.
-- 커밋되지 않았던 별도 평가 오버레이의 임계값 변경(0.6/0.4→0.5/0.3), axe-v9 후보 궤적 검사 교체, ego_geom shrink 제거를 되돌리고 실험용 보조 파일 4개를 제거했다. 원본 YAML·추론 코드·ego_geom×0.98을 사용하는 구성으로 재빌드/CPU 실제 추론 검증을 통과했다. original_model_integrity.json에서 원본 소스 368파일 및 모델 설정 보존을 확인했다.
-- compose_config.py에 추론용 경로/분기 변환 외에는 제공된 설정을 보존한다는 주석을 추가했다. BEV의 카메라 수는 원본 bev_num_cameras=5를 그대로 사용하며, flat-image용 n_camera=3의 불필요한 override도 제거했다. 비교 대상은 모델 구성 전체의 성능이며, 카메라 수 단독 효과로 해석하지 않는다.
-- 외부 평가 계약(441/dev/16 replicas/MPC 1/0.25/3)은 동일하다. GPU 평가는 아직 실행하지 않았고 대기 프로세스/다른 연구원의 작업/기존34 결과는 변경하지 않았다. 검증 결과는 runs/prepare-stage3-5cam-ep05/, 다음 실행은 e2e_challenge/5cam_eval/run.sh --wait.
+- GPU 여유 시 즉시 실행 가능한지 원본 체크섬·이미지·offline CLI·renderer cache·포트·디스크·실제 441개 sceneset을 다시 점검했다. 실제 launcher의 simulator 스크립트를 dry run해 설정/Compose 생성과 441·16 replicas·MPC 계약을 검증했다.
+- CPU 전용 임시 컨테이너에서 실제 entrypoint를 평가 보안/파일시스템 조건 그대로 기동하고 strict checkpoint/실제 gRPC get_version을 확인한 뒤 해당 컨테이너만 종료·제거했다. 원본 모델·추론 설정은 이번 검토에서 수정하지 않았다.
+- 사용자가 GPU 4–7 즉시 평가를 요청했다. GPU가 모두 비어 있는 것을 확인한 뒤 detached nohup launcher PID 1755493을 기동했다. 결과 run은 runs/leaderboard-stage3-5cam-ep05-20261007, 기존34+신규1 joint fit/CSV는 완료 후 자동 생성된다. 연구 질문은 상황별 후방 입력 필요성을 분석할 441 주행 기록을 확보하는 것이다.
+- 사전 검증은 runs/prepare-stage3-5cam-ep05/deployment_validation.json 및 driver_deployment_validation.json, 실행 로그는 runs/leaderboard-stage3-5cam-ep05-20261007.progress.log에 남겼다. 모델 source commit fc51304와 image ID ed845b1936a81caa718dae6b70acacbbd21dbb30e9f4b21308c6b09e95c16bfd를 고정했다.
 
 ## 4. 다음 단계
 
-- 현재 요청: 준비한 `e2e_challenge/5cam_eval/run.sh --check`로 확인 후, GPU 4–7 여유 시 `run.sh` 실행. 대기까지 맡길 때:
+- 현재 실행을 중복 기동하지 않고 관찰한다:
   ```bash
   cd /home/kaist5/data/junseong/AlpaSim-E2E-Challenge/alpasim
-  nohup e2e_challenge/5cam_eval/run.sh --wait > runs/leaderboard-stage3-5cam-ep05-20261007.progress.log 2>&1 &
+  tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007.progress.log
+  tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007/driver-start.log
   ```
 - 모델의 원본 gate/threshold/BEV/입력 구성을 유지하며 비교한다. 기존 34개에는 과거 MPC·reranker 차이가 있는 주체도 있으므로, 동일 계약의 axe-v9와 짝비교하고 전체35 leaderboard는 각 제출 구성의 비교로 해석한다.
 - 기존 run이 없을 때만 신규 시작. 중단 후 본인 driver 잔여 컨테이너가 있으면 정확한 prefix로 대상을 출력/정리한 뒤 `run.sh --resume` 사용.
@@ -223,7 +226,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 5. 미결 질문 (사용자 결정 필요)
 
-- 이번 5카메라 환경 준비에는 미결 질문 없음. GPU closed-loop 검증/441 점수는 GPU 여유 후 실제 실행 시 확인한다. 아래 연구·제출 결정은 과거 기록.
+- 이번 5카메라 평가 실행에는 미결 질문 없음. GPU closed-loop/441 점수는 현재 실행에서 확인한다. 아래 연구·제출 결정은 과거 기록.
 - 원본 설정 유지 여부는 사용자가 확정했다. 별도 임계값 튜닝이나 axe-v9 gate 이식은 진행하지 않는다.
 
 - CSV 사유 추가 요청 미결 없음. 부분 점수의 물리적 원인(저속/정체 등)은 요약 지표만으로 단정하지 않음.
