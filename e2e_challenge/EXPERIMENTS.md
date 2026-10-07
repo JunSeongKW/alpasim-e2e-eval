@@ -48,3 +48,5 @@
 | 날짜 | run (runs/…) | 클립 | rollout | 평균 점수 | 0점 비율 | corridor 이탈률 | 메모 |
 |---|---|---:|---:|---:|---:|---:|---|
 | 2026-10-07 | leaderboard-stage3-5cam-ep05-20261007 | 441 | 441 | 0.4316 | 0.286 | 0.109 | 원본 stage3_5cam_ep05_20261007 / 5카메라 / BEV 56×112 / 임계값 .6/.4 / dev·MPC1/.25/3 / GPU0–7×6. 지원되지 않는 CUDA 연산은 원본 PyTorch fallback으로 호환 복구 후 전441 재평가. 기존34+신규1 joint fit PCS1894, Rank25(25–26), at-fault0.4516km. axe-v9 평균.6993/후방충돌87 대비 .4316/150. 상황별후방입력필요성 분석: 접근210/반응관찰176/가속+1m/s27; 카메라 인과효과 미검증. |
+
+| 2026-10-07 | leaderboard-vits512-disjoint-baseline-ep04-20261007 | 441 | 441 | 0.6001 | 0.315 | 0.163 | 20261007_vits512_disjoint_baseline_stage3_epoch04-step4075.ckpt / train·val 분리 / 3카메라 / axe-v9 코드·BEV56×56·임계값·추론 그대로 / checkpoint만교체 / dev·MPC1/.25/3 / GPU0–7×6. 정상439고정+renderer연결오류2만GPU0,1병렬복구(최종1점/GT corridor0점), 최종인프라오류0. 같은36주체fit PCS2353·Rank21(15–23)·atfault0.9763km; axe-v9 PCS2704/Rank2/mean.6993/rear87, 5cam PCS1896/Rank26/mean.4316/rear150 대비 신규rear69. 입력필요성/학습분리통제비교자료이며카메라만의인과효과는미검증. 최종19:56 KST완료. |
