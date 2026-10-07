@@ -19,6 +19,9 @@ config_dir = args.source / "navsim/planning/script/config/common/agent"
 with initialize_config_dir(config_dir=str(config_dir.resolve()), version_base=None):
     cfg = compose(config_name=AGENT)
 values = OmegaConf.to_container(cfg.config, resolve=False)
+# Preserve the supplied model's thresholds and trajectory selection code.
+# These overrides only load trained weights and connect inference to AlpaSim;
+# use_route=True follows the evaluation command in README_5CAM_KO.md.
 values.update(
     training=False,
     only_ori_input=True,
@@ -27,7 +30,6 @@ values.update(
     ckpt_path="/app/assets/drivesuprim/stage3_5cam_ep05.ckpt",
     vocab_path="/app/assets/drivesuprim/nurec_train_kmeans_4096x40x3.npy",
     use_route=True,
-    n_camera=5,
 )
 args.output.write_text(json.dumps(values, indent=2) + "\n")
 print("Composed", AGENT, "->", args.output)

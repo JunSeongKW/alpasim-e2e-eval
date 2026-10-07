@@ -252,7 +252,8 @@ class DriveSuprimPolicy:
                 f"5-camera driver requires bev_num_cameras={len(CAMERA_ORDER)}, "
                 f"got {config.bev_num_cameras}"
             )
-        config.n_camera = len(CAMERA_ORDER)
+        # BEV uses the bundle's bev_num_cameras=5. Preserve n_camera, which
+        # belongs to the separate flat-image input path.
 
         config.vocab_path = vocab_path
         config.vocab_size = int(

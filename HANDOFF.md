@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 09:42 KST (Codex)
+마지막 갱신: 2026-10-07 09:59 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -8,6 +8,7 @@
 ## 1. 실행 중인 작업
 
 2026-10-07 Codex: `stage3_5cam_ep05_20261007`의 441 평가 환경 준비. GPU 평가는 아직 실행하지 않음.
+- 사용자 확정 조건: 제공된 모델 디렉토리의 원래 설정과 추론 코드를 보존한다. axe-v9 내부 설정으로 통일하지 않는다. 공통 조건은 외부 AlpaSim 평가 계약이다.
 - 전용 이미지: `alpasim-e2e-drivesuprim-stage3:5cam-ep05-20261007`.
 - GPU 4–7은 다른 `axe-rlreward-*` 작업이 점유 중. 해당 컨테이너/프로세스는 건드리지 않음. 0–3 사용 권한 없음.
 - 사용자 요청은 환경 준비이며 대기 프로세스는 자동으로 띄우지 않았다. `run.sh --wait`로 GPU 대기 후 실행할 수 있음.
@@ -17,12 +18,14 @@
 ### 5카메라 Stage 3 ep05 평가 준비 (2026-10-07)
 
 - 모델 원본: `../models/stage3_5cam_ep05_20261007/AXEv1.0-NuRec/`. 전체 SHA256SUMS 검증 성공. checkpoint SHA `79c625f3a29c49da6b9605b1062de5e8e6ec5da8391362b25507e35725bb8b8e` (epoch=4, step=4075).
+- 원본 폴더는 변경하지 않았으며 사용자 재확인 후 전체 체크섬 검사를 다시 통과했다. 원본 YAML의 drivable threshold=0.6 / agent confidence threshold=0.4, 원본 `_build_feasibility_mask`, ego_geom의 length/width×0.98을 유지한다. 별도 오버레이에서 시도했던 axe-v9 threshold=0.5/0.3·구 gate·shrink 미적용 변경은 취소하고 원본 구성으로 이미지를 재빌드했다.
+- 모델 YAML을 변환할 때 바꾸는 것은 checkpoint/vocab 배포 경로, training=False/only_ori_input=True, pretrained 초기 다운로드 방지, README의 평가 명령에 맞춘 use_route=True뿐이다. 5개 카메라는 원본의 bev_num_cameras=5로 결정된다. flat-image 경로의 n_camera=3도 원본값으로 보존한다. 학습용 분기를 추론용으로 전환하고 카메라/API 입력을 연결하며 모델 내부 튜닝 값은 덮어쓰지 않는다.
 - axe-v9 이미지 digest `85134c1ea9f09d140be610ca063c50ec60e99980c392e5bf81fe6563af503765`로 의존성/정밀도를 고정하고, 제공된 navsim/nurec_pf 소스·Hydra 설정·4096 vocab·checkpoint를 올렸다. 기존 3카메라 이미지와 소스는 변경하지 않음.
 - 별도 드라이버 오버레이 `e2e_challenge/5cam_eval/drivesuprim_challenge/`: L1/L0/F0/R0/R1 순서, 후방 alias, 5개 동기화, [1,3,5,3,256,512] 영상/[1,3,5,4,4] 보정 입력. K377 pinhole 유지.
 - 신규 소스는 `ego_geom` 입력을 요구한다. 차량 크기와 rig→box 중심을 세션별 API에서 받아, 학습 feature builder·기존 evaluator의 2% shrink와 동일하게 `[length×0.98,width×0.98,centre_x]`를 전달한다.
 - 동일 441 USDZ에 후방 카메라 보정/촬영시각이 모두 존재함. offline NAVSIM의 418 유효 클립만 사용하는 방식으로 줄이지 않았다.
-- GPU 없는 CPU에서 strict checkpoint(missing=0/unexpected=0), 학습/실시간 영상 보정, 카메라 순서·누락·동기화, 실제 forward의 유한한 40×3 출력 확인. 최종 이미지 재검증 기록: `runs/prepare-stage3-5cam-ep05/cpu_validation.json`, `cpu-validation.log`, `scene_audit.json`, `evaluation_config.yaml`, `image-id.txt`.
-- 최종 이미지 protobuf 세션/5개 실시간 PNG 콜백 및 실제 CPU forward 재검증 통과(15.6초). `run.sh --check` 성공, GPU 점유 시 신규 실행을 exit75로 중단하며 run 폴더/드라이버가 생성되지 않음. leaderboard validator는 누락/중복 rollout/결측 score를 거부하는 것도 확인했고 기존 evaluator 테스트3개, ruff/black/bash 문법 검사를 통과했다.
+- GPU 없는 CPU에서 strict checkpoint(missing=0/unexpected=0), 학습/실시간 영상 보정, 카메라 순서·누락·동기화, 실제 forward의 유한한 40×3 출력 확인. 최종 이미지 재검증 기록: `runs/prepare-stage3-5cam-ep05/cpu_validation.json`, `cpu-validation.log`, `scene_audit.json`, `evaluation_config.yaml`, `image-id.txt`. `original_model_integrity.json`에는 원본 소스 368개 파일의 바이트 일치 및 경로/추론 모드/use_route 외에는 YAML 값 차이가 없음을 기록했다.
+- 원본 설정을 보존한 최종 이미지에서 protobuf 세션/5개 실시간 PNG 콜백 및 실제 CPU forward 재검증 통과. `run.sh --check` 성공, GPU 점유 시 신규 실행을 exit75로 중단하며 run 폴더/드라이버가 생성되지 않음. leaderboard validator는 누락/중복 rollout/결측 score를 거부하는 것도 확인했고 기존 evaluator 테스트3개, ruff/black/bash 문법 검사를 통과했다.
 - `run.sh`: 4–7만 사용, 각 4 replicas(총16), 441×1 rollout, dev, lat/lon/idx=1/0.25/3, no video, FP32(기존 내부 ViT AMP 유지), reranker 없음. 원본 rollout 보존. GPU 점유/이미지 변경/결과 덮어쓰기 거부, `--resume` 제공.
 - `leaderboard.py`: 기존 독립 local26+reference8을 `existing_subjects.json`에 고정; 34개 동일 441 입력 확인. 완료 후 신규 `stage3-5cam-ep05`와 총35개를 CPU에서 ZOIB 재적합(seed42/1000epochs/16particles, rank MC100000/seed0). 결과 `runs/leaderboard-35-with-stage3-5cam-ep05/local_leaderboard.csv`, `capability_ranking.csv`, `paired_with_axe_v9.txt`.
 - 새 모델은 5카메라뿐 아니라 BEV 종방향 -56~56m, 격자56×112, key/value28×56, stage3 ep05 및 제공된 gate 소스/threshold도 바뀌었다. 동일 평가 계약에서 모델 구성 전체를 비교하며, 카메라 수만의 효과로 해석하지 않는다. 연구 질문과의 연결은 상황별 후방 입력 필요성을 분석할 441 주행 기록을 확보하는 데 있다.
@@ -190,10 +193,10 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 제공된 5카메라 checkpoint가 기존 3카메라 드라이버로는 로딩/입력될 수 없어, axe-v9 digest 기반 별도 이미지와 5카메라 오버레이를 만들었다. 학습 소스/직사각형 BEV 설정을 그대로 적용했다.
-- 새 모델이 요구하는 per-session ego_geom을 평가 API와 연결했다. 441 전체 rear camera 존재 및 CPU 실제 추론을 검증했다.
-- GPU 여유 확인 후 실행/대기/재개 가능한 고정 계약 launcher와 기존34+신규1 joint leaderboard 자동 적합/사용자 형식 CSV/axe-v9 짝비교를 연결했다.
-- 빌드·검증은 GPU 없이 수행. 다른 연구원의 작업/원본 평가 결과는 변경하지 않았고 441 시뮬레이션 및 대기열은 시작하지 않았다.
+- 사용자는 모델 입력만의 효과를 위해 내부 값을 axe-v9로 통일하는 대신, 제공된 5카메라 모델 구성 전체를 그대로 평가하도록 명확히 했다. 원본 디렉토리는 이전부터 수정하지 않았으며 전체 SHA256SUMS 검증으로 확인했다.
+- 커밋되지 않았던 별도 평가 오버레이의 임계값 변경(0.6/0.4→0.5/0.3), axe-v9 후보 궤적 검사 교체, ego_geom shrink 제거를 되돌리고 실험용 보조 파일 4개를 제거했다. 원본 YAML·추론 코드·ego_geom×0.98을 사용하는 구성으로 재빌드/CPU 실제 추론 검증을 통과했다. original_model_integrity.json에서 원본 소스 368파일 및 모델 설정 보존을 확인했다.
+- compose_config.py에 추론용 경로/분기 변환 외에는 제공된 설정을 보존한다는 주석을 추가했다. BEV의 카메라 수는 원본 bev_num_cameras=5를 그대로 사용하며, flat-image용 n_camera=3의 불필요한 override도 제거했다. 비교 대상은 모델 구성 전체의 성능이며, 카메라 수 단독 효과로 해석하지 않는다.
+- 외부 평가 계약(441/dev/16 replicas/MPC 1/0.25/3)은 동일하다. GPU 평가는 아직 실행하지 않았고 대기 프로세스/다른 연구원의 작업/기존34 결과는 변경하지 않았다. 검증 결과는 runs/prepare-stage3-5cam-ep05/, 다음 실행은 e2e_challenge/5cam_eval/run.sh --wait.
 
 ## 4. 다음 단계
 
@@ -202,6 +205,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
   cd /home/kaist5/data/junseong/AlpaSim-E2E-Challenge/alpasim
   nohup e2e_challenge/5cam_eval/run.sh --wait > runs/leaderboard-stage3-5cam-ep05-20261007.progress.log 2>&1 &
   ```
+- 모델의 원본 gate/threshold/BEV/입력 구성을 유지하며 비교한다. 기존 34개에는 과거 MPC·reranker 차이가 있는 주체도 있으므로, 동일 계약의 axe-v9와 짝비교하고 전체35 leaderboard는 각 제출 구성의 비교로 해석한다.
 - 기존 run이 없을 때만 신규 시작. 중단 후 본인 driver 잔여 컨테이너가 있으면 정확한 prefix로 대상을 출력/정리한 뒤 `run.sh --resume` 사용.
 - 완료 결과: `runs/leaderboard-stage3-5cam-ep05-20261007/aggregate/results-summary.json`; 전체35 fit은 launcher가 자동 실행한다. 후처리만 재실행할 때 `.venv/bin/python e2e_challenge/5cam_eval/leaderboard.py`. 완료 후 EXPERIMENTS.md에 원장 행을 추가하고 HANDOFF/커밋을 갱신한다.
 
@@ -220,6 +224,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 ## 5. 미결 질문 (사용자 결정 필요)
 
 - 이번 5카메라 환경 준비에는 미결 질문 없음. GPU closed-loop 검증/441 점수는 GPU 여유 후 실제 실행 시 확인한다. 아래 연구·제출 결정은 과거 기록.
+- 원본 설정 유지 여부는 사용자가 확정했다. 별도 임계값 튜닝이나 axe-v9 gate 이식은 진행하지 않는다.
 
 - CSV 사유 추가 요청 미결 없음. 부분 점수의 물리적 원인(저속/정체 등)은 요약 지표만으로 단정하지 않음.
 
