@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 17:07 KST (Codex)
+마지막 갱신: 2026-10-07 17:09 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -10,7 +10,7 @@
 - 신규 사용자 요청: `../models/20261007_vits512_disjoint_baseline_stage3_epoch04-step4075.ckpt`를 **axe-v9와 동일한 모델 코드·추론 설정에서 가중치만 교체**해 441 curated_val/dev/각1rollout 평가. train/val 분리 학습은 사용자 제공 설명. GPU0–7·속도 우선 명시 승인에 따라 48 driver/worker/renderer(각GPU6개), gRPC8/batch1/NONE/FP32(원래ViT AMP)/MPC1/.25/3/ego footprint 유지. 5cam의 임계값·BEV·코드는 가져오지 않는다.
 - 준비 검증 완료: 새 SHA256 `e8f87989206f15586218f70b2a6977ec83fe6e82ce983f144b66a6605650f9f1`, epoch4/step4075, 1344개 키/shape 모두 axe-v9 checkpoint364c8과 일치, camera embeddings3. base image85134에 ckpt파일 하나만 추가한 image `sha256:8b91cb765976c487271422f39b53ca50be179d79c3f851a729e7f19e0779bfd3`; 모든 base layer/env/entrypoint/cmd 동일. 새 checkpoint 원본 수정 없음.
 - 실제 readonly GPU0 smoke: strict load missing0/unexpected0, 3cam/BEV56×56/4096 vocab, 원래 PyTorch MSDA dispatch의 constant sample=1과 실제 유한한40×3 forward 통과. 48-worker dryrun/Compose/scene441/채점·MPC·simulation 기존dev설정 일치 검증 완료. 근거 `runs/prepare-vits512-disjoint-baseline-ep04-20261007/`의 checkpoint_validation.json/image_integrity.json/gpu_validation.json/deployment_validation.json 및 로그.
-- 실행 스크립트 `e2e_challenge/axe_local_eval/run_disjoint512.py`, run `leaderboard-vits512-disjoint-baseline-ep04-20261007`, prefix`axe-disjoint512-ep04-drv`, driverports7500–7547/wizard23000. 이번 준비 커밋 후 독립SID/nohup으로 즉시 실행한다. 상태/PID는 run/status.json 및 .cache/<run>.launcher.pid, 진행로그 runs/<run>.progress.log, native로그 runs/<run>.wizard.log. ASL 보존, VRAM 근접만으로 중단하지 않음.
+- 실행 스크립트 `e2e_challenge/axe_local_eval/run_disjoint512.py`, run `leaderboard-vits512-disjoint-baseline-ep04-20261007`, prefix`axe-disjoint512-ep04-drv`, driverports7500–7547/wizard23000. 17:07:26 KST 독립SID/nohup 기동 완료, PID3038565(PPID1/SID3038565), 48개 드라이버 기동 중. 상태/PID는 run/status.json 및 .cache/<run>.launcher.pid, 진행로그 runs/<run>.progress.log, native로그 runs/<run>.wizard.log. ASL 보존, VRAM 근접만으로 중단하지 않음.
 - 완료 후 자기 컨테이너 이름을 먼저 출력하고 그 project/prefix만 정리한 뒤 CPU36주체 jointfit 자동실행. 결과 `runs/leaderboard-36-with-vits512-disjoint-ep04/local_leaderboard.csv`, 기존35·8anchor 포함/동일441검증/원래7열/풀 참고 문구. 기존점수·리더보드와 원본5cam 디렉토리는 보존.
 - 이전 원본5cam 441/35fit 완료(14:22/14:24), Rank25/PCS1894/mean.4316/atfault.4516. 이전 후방분석도 14:46:12 완료: `/home/kaist5/data/junseong/stage3_5cam_rear_response_20261007/status.json` complete, 사례MP4/속도gapPNG/CSV6개. 모든 이전GPU컨테이너 해제됐고 신규preflight에서GPU0–7 모두0MiB 확인.
 
@@ -232,13 +232,14 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 ## 3. 마지막 커밋 이후 바뀐 것
 
 - 신규 3cam/train-val 분리 체크포인트 평가 요청에 따라 axe-v9 immutable image를 weights-only overlay로 재사용했다. source/config/env는 동일하고 checksum/key/shape/실제CUDA forward와 알려진값MSDA검증을 통과했다. 원본 checkpoint와5cam 폴더 수정 없음.
+- 17:07:26 KST 신규평가 launcher PID3038565(PPID1,독립SID3038565)를 실제기동했다. GPU0–7 전체에서 가중치 로드 및 드라이버 생성 진행 중이며 정상기동 후 441 시뮬레이션/36fit 자동진행한다.
 - 독립48-worker 실행기(run_disjoint512.py)와 공통bench feature를 사용하는GPU smoke helper, 기존35+신규1 jointfit helper(disjoint512_leaderboard.py)를 추가했다. 자기 lock/새ports/중복기동 거부/범위제한 cleanup/ASL보존/VRAM10초관측/완료후CPU leaderboard 연결. Black/Ruff 및 35개입력441 일치검증 통과.
 - 48-worker dryrun의 채점·simulation·MPC가 기존dev평가와 완전히 같고441클립/48endpoint/441USDZ/Compose 검증 성공. 준비근거 runs/prepare-vits512-disjoint-baseline-ep04-20261007/. 진행률은 신규run의 valid _complete만 세며 과거5cam 결과는 섞지 않는다.
 - 기존 후방비교6영상 제작완료를 확인했다. 신규 disjoint3cam은 학습분리 통제를 제공하여 상황별입력필요성 질문의 비교자료가 되지만, 가중치·BEV 등이 다른5cam과 카메라만의 인과비교라고 주장하지 않는다.
 
 ## 4. 다음 단계
 
-- 준비 커밋 후 `run_disjoint512.py`를 nohup+Popen(start_new_session=True)으로 실행하고 실PID/48drivers-ready/native runtime 및 최초클립진행을 확인한다. launchcommit tag `run/leaderboard-vits512-disjoint-baseline-ep04-20261007`.
+- 현재 launcher PID3038565가 48개 드라이버를 기동 중이다. 진행로그에서 48drivers-ready/native runtime 및 최초클립진행을 확인한다. launchcommit tag `run/leaderboard-vits512-disjoint-baseline-ep04-20261007`.
 - 새441 완료 후 자동36주체 jointfit 및 axe-v9/5cam paired 비교가 끝나는지 확인한다. 사용자에게 mean/PCS/순위/atfault/36행CSV를 같은fit에서 제공한다. 실패하면 로그에 근거해 해당job만 복구하고 정상진행 중 VRAM높음만으로 멈추지 않는다.
 - 이전 후방분석6영상은 모두완료. 실제경로 `.../stage3_5cam_rear_response_20261007/cases/<clip_id>/paired_front_rear.mp4`, speed_gap_comparison.png/time_series.csv. 사용자 제공은 신규평가 실행확인 후 링크한다. 재실행점수 차이는 selected_case_comparison.csv에 공개되어 있다.
 
@@ -246,7 +247,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 - 신규 3cam 체크포인트 평가에 미결 승인 없음. GPU0–7/최대한 빠른 실행은 명시 승인됐다. 이번 요청은 axe-v9 설정을 유지하므로 5cam 원본의 .6/.4 임계값을 이식하지 않는다. 결과와 정확한 처리시간은 실행 후 측정한다.
 
-- 최종441/리더보드보고에는미결없음. 대표6개후방접근영상/paired그래프제공은아직남아있다. 원본5cam카메라만의효과를분리하는ablation은이번범위에포함되지않았다.
+- 최종441/리더보드보고에는미결없음. 대표6개후방접근영상/paired그래프는14:46완료. 원본5cam카메라만의효과를분리하는ablation은이번범위에포함되지않았다.
 
 - 이번중간결과보고에사용자결정없음. 후방분석예약PID2544720복구완료,최종성능/접근가속영상결과는원평가와분석완료를기다린다.
 
