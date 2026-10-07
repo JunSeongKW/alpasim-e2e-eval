@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 11:56 KST (Codex)
+마지막 갱신: 2026-10-07 12:14 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -12,11 +12,19 @@
 - 별도 평가 policy 어댑터에서 해당 환경변수를 적용해 **원본 모델에 이미 있는 PyTorch fallback**을 선택한다. axe-v9가 사용한 같은 연산 경로다. 모델 원본 폴더/가중치/소스/BEV/threshold .6/.4/gate는 변경하지 않았다. policy 시작 때 GPU 샘플이 정확히 1인지 검증해 잘못된 커널이면 기동 실패하도록 했다.
 - 새 이미지 ID `sha256:b798c846bc8f44ebc702f189f803b8da8accd437fc824e04020cfcb7a88777c7`. 이전 잘못된 이미지 ed845b...와 그 33개 완료/48개 진행 기록은 `runs/leaderboard-stage3-5cam-ep05-20261007/topology-history/20261007-115013-invalid-cuda/`에 삭제 없이 격리했다. **33개를 정상 점수로 재사용하지 않고 441개 전부 재평가**한다.
 - CPU/CUDA 실제 전체 forward와 strict checkpoint, 5카메라 보정/순서/동기화/ego_geom 검증을 새 이미지에서 통과했다. CUDA kernel 오류가 없고 GPU operator assertion 통과. 원본 SHA256SUMS 전체 재검증도 성공했다. 기록은 `runs/prepare-stage3-5cam-ep05/{cpu,gpu}_validation_fixed_operator.json` 및 해당 로그, `invalid_cuda_operator.json`.
-- 현재 launcher PID2231118, PPID1 / driver48 CUDA-ready 11:54:14 / runtime 재개11:54:24. 11:55에 신규48 ASL 생성, 11:56에26 driver 실제 prediction 및 kernel/OOM 오류 없음 확인. 원래57 native service의 컨테이너 ID가 전부 동일해 warm reuse를 검증했다. 최종기동 검증 `runs/prepare-stage3-5cam-ep05/deployment-speed48-fixed-operator-runtime.json`.
+- 현재 launcher PID2231118, PPID1 / 12:14 KST 정상 완료47개/신규 ASL95개/최근 runtime 오류 없음 확인 / driver48 CUDA-ready 11:54:14 / runtime 재개11:54:24. 11:55에 신규48 ASL 생성, 11:56에26 driver 실제 prediction 및 kernel/OOM 오류 없음 확인. 원래57 native service의 컨테이너 ID가 전부 동일해 warm reuse를 검증했다. 최종기동 검증 `runs/prepare-stage3-5cam-ep05/deployment-speed48-fixed-operator-runtime.json`.
 - launcher `e2e_challenge/5cam_eval/accelerate.py --reuse-services`: 기존 57 native renderer/physics/controller와 정확한 compose/network 설정을 보존하고 driver/runtime만 재시작한다. config 재생성에 따른 포트 변경/renderer 재기동을 피한다. PID는 `.cache/stage3-5cam-441.launcher.pid`, 로그는 `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log` / `.speed48.wizard.log`.
 - 최종 설정: gRPC 8, NONE, 모델 batch 1, driver CPU 8/32GiB, dev441×1/MPC1/.25/3/하모나이저/채점/정밀도 동일. VRAM은 run의 `vram-speed48.csv`/`vram-speed48-peaks.json`에 기록한다. 완료 후 GPU 해제 및 기존34+신규1 CPU joint leaderboard fit 자동 진행.
 
 ## 2. 최근 결과
+
+### nurec2img 렌더 제외 목록과 441 평가 대조 (2026-10-07)
+
+- nurec-302c5c99-2762-4f5d-950e-1122f3e7c20a는 curated_val 441과 현재 generated-user-config에 포함된다. 기존 axe-v9 정상 평가 점수0.2707195643440281/failure_reason null. 현재5cam에서는 USDZ의rear L1/R1 캘리브레이션과 촬영시각을 확인했고 실시간 render_rgb→driver.submit_image로 입력한다. 오프라인nurec2img PNG/학습제외목록을 읽지 않으며441을440으로 줄이지 않는다.
+- 8/25 전방3cam 재렌더 요청은 준비된1603개 로그 전체이며18개 후진도 포함한다. 그보다 앞선준비 단계에서 원시1607개 중 route0건3개 및route84%미매칭1개를 제외했다(EPDMS.md5.5).
+- 9/18 후방70fov/virtual112 추가 작업은1603+26.01고유757에서 학습후진18개를 더 제외한2342개를 사용했다. 8/28에 학습후진기준을강화했다는policy기록도존재하지만 전방요청은기존목록을유지했다. 실제후방완료2342/실패0.
+- 확인된두단계 제외22개(경로정보4+후진18)를 `e2e_challenge/axe_local_eval/data/nurec_render_exclusions_20261007.csv`에 정리했다. 각ID/사유/단계/전방요청포함/후방대상포함/441포함/출처를기록했다. 그22개 중441과겹치는것은302c5c99 하나이다. 감사JSON `runs/prepare-stage3-5cam-ep05/nurec_render_exclusions_audit.json`.
+- 학습제외54개와렌더제외22개는동일목록이아니다. 학습제외manual_ddc_review30/ghost_annotation3은 후방렌더target에포함되고실제완료됐다. 3개route_geometry_invalid는기존1603요청밖이었다.
 
 ### 5카메라 Stage 3 ep05 평가 준비 (2026-10-07)
 
@@ -200,10 +208,11 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 수정된48 driver가원본checkpoint/CUDA 로드를11:54:14에완료했다. runtime11:54:24재개, 새로운48 rollout.asl 생성과26 driver실제prediction을확인했다. 현재 launcherPID2231118/PPID1 detached실행이며kernel/OOM오류없음.
-- 모든48 container의imageID/gRPC8/FORCE_PYTORCH_MSDA1/CPU8/read-only가검증값과일치한다. 기존57 native service의containerID는재기동없이그대로유지됐다. 기동검증 `runs/prepare-stage3-5cam-ep05/deployment-speed48-fixed-operator-runtime.json`.
-- 이전unsupported CUDA 결과33개는leaderboard에서제외/격리했고441개전부재평가한다. invalidVRAM CSV도같은topology-history에보존해새run측정과구분했다. 모델원본전체SHA불변, gRPC8/NONE/MPC/정밀도유지.
-- VRAM근접만으로pause하지않는다. 실제OOM/평가오류에만대응하며현재실행을중복기동하지않는다. 완료후35주체CPUjointfit자동진행,점수/처리량은완료후갱신한다.
+- 사용자가 누락된rear70fov클립의441평가포함여부/전방렌더와의기준차이/전체제외목록을요청했다. 302c5c99는441에포함되며평가는USDZ실시간렌더링이라오프라인PNG제외와독립임을원본목록/scene_audit/runtime코드/기존axe-v9점수로확인했다.
+- 초기1607→1603 준비에서route정보4개제외,후방추가1603+757→2342에서는후진18개제외를확인했다. 8/28학습후진판정강화이력과9/18후방타깃필터를구분했다. 기존전방요청에는18개후진이모두포함된다.
+- 확인된22개 렌더요청 제외클립ID/사유/단계/441포함/출처를CSV로작성했다: e2e_challenge/axe_local_eval/data/nurec_render_exclusions_20261007.csv. JSON감사보고서는runs/prepare-stage3-5cam-ep05/nurec_render_exclusions_audit.json. 22개unique/사유18+3+1/441교집합1을검증했다. 모델폴더와실행설정은변경없음.
+- 학습제외54개를렌더제외로오인하지않도록대조했다. manual_ddc_review30/ghost_annotation3도rear렌더완료대상이다.
+- 평가PID2231118지속실행,정상완료47개/신규ASL95개/최근runtime오류없음확인. 441과전체35주체jointfit자동진행을유지한다. VRAM이높다는이유만으로pause하지않는다.
 
 ## 4. 다음 단계
 
@@ -233,6 +242,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 ## 5. 미결 질문 (사용자 결정 필요)
 
 - 이번 실행의 GPU 범위/속도 우선순위는 사용자가 확정했으며 미결 질문 없음. 실제48-worker VRAM 피크와 처리량, 최종441 점수는 실행에서 확인한다. 아래 연구·제출 결정은 과거 기록.
+- 렌더 제외 이력/441 포함 여부 조사 미결 없음. 실제 평가는 해당 클립을 포함한 441개 실시간 렌더링을 유지한다.
 - gRPC 8/NONE/원본 모델 유지 확정. GPU 호환 오류 수정은 평가 환경 복구이며 원본 모델 변경이 아니다. 이전 33개는 재평가한다. VRAM 근접만으로 중단하지 말라는 조건을 유지한다. 최종 점수/35 주체 순위/실제 처리량은 평가 완료 후 산출한다.
 - 원본 설정 유지 여부는 사용자가 확정했다. 별도 임계값 튜닝이나 axe-v9 gate 이식은 진행하지 않는다.
 
