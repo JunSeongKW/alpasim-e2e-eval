@@ -1,11 +1,13 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 13:13 KST (Codex)
+마지막 갱신: 2026-10-07 13:30 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
+
+- 후방 접근 반응 분석 예약: e2e_challenge/5cam_eval/rear_response.py --wait. 441 summary와 35주체 fit CSV, 기존 driver 해제를 기다린 뒤 CPU 분석을 시작한다. 별도 lock .cache/rear-response-20261007.lock; PID/상태는 /home/kaist5/data/junseong/stage3_5cam_rear_response_20261007/analysis.pid 및 status.json, 로그 runs/rear-response-analysis-20261007.progress.log. 현재 441 평가는 13:30 KST 완료276/441이며 설정을 바꾸지 않는다.
 
 2026-10-07 Codex: 사용자 요청으로 stage3_5cam_ep05_20261007의 441 평가를 GPU 0–7 / 각 6 / 총 48 worker로 진행한다. gRPC 8과 카메라별 NONE 렌더링은 원래 설정을 유지한다. 사용자는 높은 VRAM 사용량만으로 중단하지 말고 실제 OOM/평가 실패에만 대응하라고 명시했다. AGENTS의 GPU/16-worker 기본값보다 이번 요청이 우선한다.
 - **중요한 오류 수정**: 제공된 spatial_cross_attention.py는 기존 이미지의 DRIVESUPRIM_FORCE_PYTORCH_MSDA=1을 읽지 않았다. 설치된 MMCV CUDA 커널이 이 GPU를 지원하지 않아 매 추론에서 오류를 출력하고 0 텐서를 반환했다. 단위 검증 입력에서 실제 0 / 정답 1을 확인했다. 이전 GPU 검증의 finite 출력만으로는 이를 발견하지 못했다.
@@ -17,6 +19,14 @@
 - 최종 설정: gRPC 8, NONE, 모델 batch 1, driver CPU 8/32GiB, dev441×1/MPC1/.25/3/하모나이저/채점/정밀도 동일. VRAM은 run의 `vram-speed48.csv`/`vram-speed48-peaks.json`에 기록한다. 완료 후 GPU 해제 및 기존34+신규1 CPU joint leaderboard fit 자동 진행.
 
 ## 2. 최근 결과
+
+### 후방 접근 시 가속 반응 분석 준비 (2026-10-07)
+
+- 사용자 목적은 후방 카메라 추가 후 후방 접근에 자차가 가속해 충돌을 방지하는 경향을 보는 것이다. 같은441개의 rear collision 전이/다른hard실패/점수/progress CSV 및 발생률 그래프를 만든다. 신규441 ASL의 차량 pose로 rear 접근·gap·closing speed·TTC 및 가속+1m/s 반응, 앞차10m, 기록GT 속도변화 대비 차이를 계산한다. 초기GT/충돌·이탈·종료 censor를 적용한다.
+- axe-v9 원본441 run은 aggregate/results-summary.json만 남아 있다. 87 rear collision과 self-pair353무충돌/87충돌/1RPC결측을 확인했다. physical failure_reason은 정상 관측으로 남기고 RPC/결측만 비교 불가로 분리한다.
+- 대표클립은 안전하게회피/계속충돌/새충돌에서 UUID순최대2개씩, 부족분은접근클립으로채워최대6개. GPU해제후4/5가비면 같은immutable axe-v9 image85134/ckpt364c8/dev/MPC1/.25/3로6개만재실행한다. 원본점수와재실행차이를공개하고원본리더보드를덮어쓰지않는다. 별도run rear-response-axe-v9-replay-20261007/driverprefixaxe-rear-response-v9/ports7260~7261,22000~.
+- 각사례는 두모델의 전방/후방좌/후방우 비교MP4(후방영상은v9에서는모델입력이아님표기), 속도·후방거리·상대속도 PNG, 시계열CSV를 만든다. 전체441 통계와 선택사례 비율을 구분한다. 모델가중치/BEV등차이로 카메라 인과효과나 의도는 주장하지 않는다.
+- 결과폴더 /home/kaist5/data/junseong/stage3_5cam_rear_response_20261007. 분석요청/측정정의는 analysis_request.json. 실제ASL pose parser와 ffmpeg/font를 확인했고7tests/ruff/black검증성공, 실제MP4인코딩테스트포함. 본분석과큰영상IO는원평가완료후에만한다.
 
 - 2026-10-07 평가 진행 상황 요청: 현재 유효한 441 재평가의 완료 표지만 집계했다. 격리된 CUDA 오류 결과는 포함하지 않았다. 최근 30–60분 처리량과 클립당 평균 약 907초를 기준으로 종료 시각을 추정했다. 실행 설정 변경 없이 GPU 0–7 / 48-worker 평가를 유지한다.
 
@@ -210,10 +220,14 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자 요청에 따라 13:13 KST 완료 226/441, 진행 46, 대기 169 및 최근 처리 속도를 확인했다. 48 driver/runtime 모두 실행 중이며 OOMKilled/재시작 0. 평가 종료 예상 14:30–14:50 KST; CPU joint leaderboard fit은 이후 자동 진행.
-- runs/leaderboard-stage3-5cam-ep05-20261007/progress_status_20261007.json에 시각/집계/속도/예상 범위를 기록하고 HANDOFF를 갱신했다. 모델 원본 및 실행 설정 변경 없음.
+- 사용자 요청인 후방 접근에 대한 자차 가속/충돌 회피 분석을 완료 이후 자동 실행하도록 rear_response.py를 추가했다. 원평가와35주체리더보드완료를기다리는별도프로세스로연결하며현재평가설정/원본모델폴더는변경하지않았다.
+- 같은441개 충돌전이와5cam속도반응/GT변화/앞차/관찰불가를CSV/PNG로계산하고,6개대표클립은동일axe-v9이미지로원평가후재실행해paired전후방MP4/PNG/시계열CSV로제공한다. 기존441점수는변경없다. 결과폴더는 /home/kaist5/data/junseong/stage3_5cam_rear_response_20261007.
+- test_rear_response.py의7개 의미있는검증을통과했다: persistent접근/GT제외/반응censor/GT추세/physical실패와RPC결측구분/ASL프레임skip및손상/실제MP4encoding. 현재ASL실제pose읽기와baseline441/87rear/selfpair도통과했다. ruff/black/diffcheck 통과.
+- 다음은 status.json/progress.log를확인하고완료후전체지표및대표사례영상경로를사용자에게제공한다. 카메라자체의인과효과는단정하지않는다.
 
 ## 4. 다음 단계
+
+- 이번 후방반응 요청은 자동분석완료 후 /home/kaist5/data/junseong/stage3_5cam_rear_response_20261007/status.json과REPORT.txt를먼저읽고441지표/선택사례CSV/MP4/PNG를사용자에게제공한다. pending PID는같은폴더analysis.pid로확인하고중복시작하지않는다. 대표6개는추가GPU재실행시간이들므로원평가종료와영상완료를구분한다. 실패시원평가를재시작하지말고분석만원인수정/재개한다.
 
 - 14:30–14:50 KST 예상은 현재 처리 속도에 따른 추정이다. 완료 표지 증가와 마지막 클립/집계 진행으로 갱신하며, CPU 35-subject fit 종료 여부도 확인한다.
 
@@ -241,6 +255,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
    준수 축이라 이 축을 건드리지 않는다 — 충돌 축에 직접 작용하는 항이 필요하다.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- 후방반응분석은사용자요청범위에서예약하며미결승인없음. 실제영상/지표의사용자제공은평가/분석완료후남아있다. 후방카메라만의인과효과를분리할동일체크포인트입력ablation은이번자동분석에포함하지않는다.
 
 - 진행률/종료 예상 보고에 추가 사용자 결정 없음. 현재 실행을 그대로 유지한다.
 
