@@ -1,22 +1,22 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 17:31 KST (Codex)
+마지막 갱신: 2026-10-07 19:47 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- 2026-10-07 17:29 ETA 스냅샷: 신규disjoint512 0/441완료·48개실제진행, 첫묶음진행률중앙값72.8%, GPU0–7 util100%, VRAM약63,000–68,000MiB 정상. 초기48개진행/최근5분속도 기반 평가+36fit 예상20:10전후(대략19:45–20:30 KST), 첫묶음완료전 추정이다. 근거 run/eta_snapshot.json 및 eta_snapshot_workers.json. 설정/실행 변경 없음.
-
-- 신규 사용자 요청: `../models/20261007_vits512_disjoint_baseline_stage3_epoch04-step4075.ckpt`를 **axe-v9와 동일한 모델 코드·추론 설정에서 가중치만 교체**해 441 curated_val/dev/각1rollout 평가. train/val 분리 학습은 사용자 제공 설명. GPU0–7·속도 우선 명시 승인에 따라 48 driver/worker/renderer(각GPU6개), gRPC8/batch1/NONE/FP32(원래ViT AMP)/MPC1/.25/3/ego footprint 유지. 5cam의 임계값·BEV·코드는 가져오지 않는다.
-- 준비 검증 완료: 새 SHA256 `e8f87989206f15586218f70b2a6977ec83fe6e82ce983f144b66a6605650f9f1`, epoch4/step4075, 1344개 키/shape 모두 axe-v9 checkpoint364c8과 일치, camera embeddings3. base image85134에 ckpt파일 하나만 추가한 image `sha256:8b91cb765976c487271422f39b53ca50be179d79c3f851a729e7f19e0779bfd3`; 모든 base layer/env/entrypoint/cmd 동일. 새 checkpoint 원본 수정 없음.
-- 실제 readonly GPU0 smoke: strict load missing0/unexpected0, 3cam/BEV56×56/4096 vocab, 원래 PyTorch MSDA dispatch의 constant sample=1과 실제 유한한40×3 forward 통과. 48-worker dryrun/Compose/scene441/채점·MPC·simulation 기존dev설정 일치 검증 완료. 근거 `runs/prepare-vits512-disjoint-baseline-ep04-20261007/`의 checkpoint_validation.json/image_integrity.json/gpu_validation.json/deployment_validation.json 및 로그.
-- 실행 스크립트 `e2e_challenge/axe_local_eval/run_disjoint512.py`, run `leaderboard-vits512-disjoint-baseline-ep04-20261007`, prefix`axe-disjoint512-ep04-drv`, driverports7500–7547/wizard23000. 17:07:26 KST 독립SID/nohup 기동 완료, PID3038565(PPID1/SID3038565). 48개 strict CUDA-ready 완료/17:10:41 시뮬레이터 시작/17:16 KST 441 scene 등록과48개 rollout.asl 생성·실제카메라이벤트 진행 확인. 상태/PID는 run/status.json 및 .cache/<run>.launcher.pid, 진행로그 runs/<run>.progress.log, native로그 runs/<run>.wizard.log. ASL 보존, VRAM 근접만으로 중단하지 않음.
-- 완료 후 자기 컨테이너 이름을 먼저 출력하고 그 project/prefix만 정리한 뒤 CPU36주체 jointfit 자동실행. 결과 `runs/leaderboard-36-with-vits512-disjoint-ep04/local_leaderboard.csv`, 기존35·8anchor 포함/동일441검증/원래7열/풀 참고 문구. 기존점수·리더보드와 원본5cam 디렉토리는 보존.
-- 이전 원본5cam 441/35fit 완료(14:22/14:24), Rank25/PCS1894/mean.4316/atfault.4516. 이전 후방분석도 14:46:12 완료: `/home/kaist5/data/junseong/stage3_5cam_rear_response_20261007/status.json` complete, 사례MP4/속도gapPNG/CSV6개. 모든 이전GPU컨테이너 해제됐고 신규preflight에서GPU0–7 모두0MiB 확인.
+- 신규disjoint512 원441 시뮬레이션은19:39:40 종료/자동36fit19:41:30 완료했지만 **유효완료439+렌더러HTTP2 SETTINGS 연결시간초과2**를 발견했다. 원평가status complete는인프라2건포함이므로최종완료로보고하지않는다. 현재status infrastructure_retry_pending으로정정했다.
+- 정상439클립의score/rolloutID는그대로보존하고 `clipgt-24535266-2711-4c57-a98d-bfc024a98782`, `clipgt-44df49fe-0729-4c30-98d0-5a40f43b7b09`만같은immutable3cam image8b91/ckpt e8f879/dev/MPC1/.25/3/batch1/gRPC8/NONE로재평가한다. GPU0,1각1driver/renderer·worker2로두클립을병렬처리한다. 원48GPU컨테이너는자기범위cleanup완료/모든GPU0MiB확인. 다른모델/클립재평가없음.
+- 복구코드 `e2e_challenge/axe_local_eval/retry_disjoint512_infrastructure.py`, 별도run `leaderboard-vits512-disjoint-baseline-ep04-20261007-infra-retry`, prefix axe-disjoint512-ep04-retry, ports7600/7601/wizard24000. 이커밋후nohup+독립SID로즉시실행한다. 원run/status.json은복구상태를추적하며재시도로그 runs/<retry>.progress.log 및 .wizard.log. 실패기록과초기36fit은원run/attempt-history/initial-two-rpc-failures/에보존한다.
+- 재시도2개성공후439원점수보존검증/누락중복없음/원채점설정일치 검증하고 공식aggregation으로같은441를재집계한다. 기존 preliminary36fit을보존한뒤36fit을다시계산하며결과경로 runs/leaderboard-36-with-vits512-disjoint-ep04/local_leaderboard.csv 유지. 물리실패0점도채점결과로유지하며점수에따른재시도/선택없음.
+- 사용자가439개결과를먼저요청했다. `runs/leaderboard-vits512-disjoint-baseline-ep04-20261007/interim_439_results.json`: 평균.6005425957/거리.975020km/만점210/0점138/부분91/rear69/at-fault31/offroad39/corridor68. 같은439axe-v9 평균.6981824171/거리1.297145/후방86/만점238/0점97/부분104; baseline역사적RPC1은원점수0을보존하고비교표각주에표시한다. 기존5cam같은439 mean.428972/거리.450613/rear150.
+- 이전5cam441/35fit 및후방6영상은완료상태를유지하며이번복구와섞지않는다. 원본모델/체크포인트/원리더보드변경없음.
 
 ## 2. 최근 결과
+
+- 19:46 KST 정상439개의중간결과: disjoint512 mean.6005/at-fault-distance.9750km/perfect210(47.84%)/zero138(31.44%)/partial91(20.73%)/rear69(15.72%)/atfault31(7.06%)/offroad39(8.88%)/corridor68(15.49%). 같은439axe-v9 mean.6982/거리1.2971/후방86(19.59%), 신규점수 개선82/악화131/동률226. 모델후방충돌은줄었으나책임충돌17→31·corridor40→68으로평균점수는낮다. PCS/순위는인프라2복구후최종36fit값을보고한다.
 
 - 신규disjoint512 종료시각문의(17:29): 완료0이며48개진행중이므로 확정성능점수는 아직없다. 첫묶음각worker의실제Session/InitialStep/StepEvent에서 진행률·walltime·최근5분속도로ETA산출, 사용자예상20:10전후/19:45–20:30(리더보드약5분포함). 모든GPU100% 및프로세스정상확인, 중단/설정변경없음.
 
@@ -235,12 +235,13 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 17:31 KST 첫2개 완료(2/441)를 추가확인했다. 초기예측범위는유지하며 실제완료율안정전 확정ETA로취급하지않는다.
-- 사용자종료예정문의에 신규disjoint512 job만 읽기전용으로확인했다. 17:29 KST 0/441완료·48실제진행·첫묶음중앙값72.8%·GPU0–7 util100%·VRAM약63,000–68,000MiB, 정상진행이다.
-- 실제worker별로그에서현재sim시간/총steps/첫시작walltime/최근5분속도를측정하여 run/eta_snapshot_workers.json 및 eta_snapshot.json 저장. 초기묶음기준약20:10전후(19:45–20:30KST/CPU36fit포함)로보고한다. 첫묶음완료전추정이므로 첫완료클립이쌓이면 실제완료처리량으로갱신한다.
-- 모델/채점/MPC/48worker/컨테이너와실행기에변경없음. 원본체크포인트/5cam소스/기존리더보드는보존한다.
+- 전체완료문의에서439_complete와summary441의차이를발견했다. 실패2는모델실패가아닌renderer gRPC UNAVAILABLE/HTTP2 SETTINGS timeout이며0점placeholder였다. 원GPUjob과초기CPU36fit은19:41종료했다. 사용자에게439정상/2연결오류/동일설정2개복구를알렸고439우선결과요청에맞춰같은439 비교통계를저장했다.
+- repair helper가원439점수/ID/score_metrics를보존하고2인프라클립만1회재시도한다. 실패기록·초기집계·예비36fit을보존하고성공후공식441집계/36fit을재실행한다. 새36leaderboard검증은신규row에AioRpcError가있으면최종fit을거부한다.
+- 5개tests에서기존점수변경/클립누락/중복/인프라미해결거부와물리실패0점허용을검증했다. Black/Ruff 통과. 이번연구비교는train-val분리3cam모델의성능/상황별입력필요성비교자료이며카메라만의인과효과라고주장하지않는다.
 
 ## 4. 다음 단계
+
+- 이번복구코드를독립SID/nohup실행하고2개실제기동확인후사용자에게439개표를제공한다. 정상439는재평가하지않는다. 이후run/status.json과retry로그에서2개성공→원441집계→36fit완료를확인하고최종행과CSV를보고한다.
 
 - 다음종료예측은실제 _complete 누적과최근30~60분완료율을사용하고 초기0완료ETA를확정값처럼반복하지않는다. 현재job은그대로유지한다.
 
@@ -249,6 +250,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 - 이전 후방분석6영상은 모두완료. 실제경로 `.../stage3_5cam_rear_response_20261007/cases/<clip_id>/paired_front_rear.mp4`, speed_gap_comparison.png/time_series.csv. 사용자 제공은 신규평가 실행확인 후 링크한다. 재실행점수 차이는 selected_case_comparison.csv에 공개되어 있다.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- 인프라2개복구는기존동일평가완료의범위에포함되며미결승인없음. 439 우선중간보고는사용자명시요청이다. 모델실패클립은재시도하지않으며기존439결과를그대로보존한다.
 
 - 신규disjoint512 ETA문의에사용자결정없음. 첫48개완료전이라추정범위가넓으며실제처리량으로후속갱신한다.
 

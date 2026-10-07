@@ -37,10 +37,14 @@ def check(new_run=None):
             expected = clips
         assert clips == expected, f"Different 441 clips: {name}"
     if new_run is not None:
-        clips, _ = clip_scores(
+        clips, summary = clip_scores(
             new_run / "aggregate/results-summary.json", one_rollout=True
         )
         assert clips == expected, "New run must have the same 441 clips"
+        assert not any(
+            "AioRpcError" in (row.get("failure_reason") or "")
+            for row in summary["rollouts"]
+        ), "Renderer/driver infrastructure failures require retry before final ranking"
     print("PASS: existing 35 subjects use the same 441 clips", flush=True)
     return local, set(paths)
 
