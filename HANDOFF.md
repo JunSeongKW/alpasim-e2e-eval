@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 12:14 KST (Codex)
+마지막 갱신: 2026-10-07 13:13 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -12,11 +12,13 @@
 - 별도 평가 policy 어댑터에서 해당 환경변수를 적용해 **원본 모델에 이미 있는 PyTorch fallback**을 선택한다. axe-v9가 사용한 같은 연산 경로다. 모델 원본 폴더/가중치/소스/BEV/threshold .6/.4/gate는 변경하지 않았다. policy 시작 때 GPU 샘플이 정확히 1인지 검증해 잘못된 커널이면 기동 실패하도록 했다.
 - 새 이미지 ID `sha256:b798c846bc8f44ebc702f189f803b8da8accd437fc824e04020cfcb7a88777c7`. 이전 잘못된 이미지 ed845b...와 그 33개 완료/48개 진행 기록은 `runs/leaderboard-stage3-5cam-ep05-20261007/topology-history/20261007-115013-invalid-cuda/`에 삭제 없이 격리했다. **33개를 정상 점수로 재사용하지 않고 441개 전부 재평가**한다.
 - CPU/CUDA 실제 전체 forward와 strict checkpoint, 5카메라 보정/순서/동기화/ego_geom 검증을 새 이미지에서 통과했다. CUDA kernel 오류가 없고 GPU operator assertion 통과. 원본 SHA256SUMS 전체 재검증도 성공했다. 기록은 `runs/prepare-stage3-5cam-ep05/{cpu,gpu}_validation_fixed_operator.json` 및 해당 로그, `invalid_cuda_operator.json`.
-- 현재 launcher PID2231118, PPID1 / 12:14 KST 정상 완료47개/신규 ASL95개/최근 runtime 오류 없음 확인 / driver48 CUDA-ready 11:54:14 / runtime 재개11:54:24. 11:55에 신규48 ASL 생성, 11:56에26 driver 실제 prediction 및 kernel/OOM 오류 없음 확인. 원래57 native service의 컨테이너 ID가 전부 동일해 warm reuse를 검증했다. 최종기동 검증 `runs/prepare-stage3-5cam-ep05/deployment-speed48-fixed-operator-runtime.json`.
+- 현재 launcher PID2231118, PPID1 / 13:13 KST 정상 완료 226/441(51.2%), 진행 46, 대기 169. driver 48개 및 runtime 정상 실행, OOMKilled/재시작 0. 최근 30/45/60분 처리량 2.73/2.91/2.97 clips/min. 평가 종료 예상 14:30–14:50 KST이며 이후 CPU 전체35 leaderboard fit이 자동 진행된다. 현재 상태와 추정 근거는 run의 progress_status_20261007.json. driver48 CUDA-ready 11:54:14 / runtime 재개11:54:24. 최종기동 검증 runs/prepare-stage3-5cam-ep05/deployment-speed48-fixed-operator-runtime.json.
 - launcher `e2e_challenge/5cam_eval/accelerate.py --reuse-services`: 기존 57 native renderer/physics/controller와 정확한 compose/network 설정을 보존하고 driver/runtime만 재시작한다. config 재생성에 따른 포트 변경/renderer 재기동을 피한다. PID는 `.cache/stage3-5cam-441.launcher.pid`, 로그는 `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log` / `.speed48.wizard.log`.
 - 최종 설정: gRPC 8, NONE, 모델 batch 1, driver CPU 8/32GiB, dev441×1/MPC1/.25/3/하모나이저/채점/정밀도 동일. VRAM은 run의 `vram-speed48.csv`/`vram-speed48-peaks.json`에 기록한다. 완료 후 GPU 해제 및 기존34+신규1 CPU joint leaderboard fit 자동 진행.
 
 ## 2. 최근 결과
+
+- 2026-10-07 평가 진행 상황 요청: 현재 유효한 441 재평가의 완료 표지만 집계했다. 격리된 CUDA 오류 결과는 포함하지 않았다. 최근 30–60분 처리량과 클립당 평균 약 907초를 기준으로 종료 시각을 추정했다. 실행 설정 변경 없이 GPU 0–7 / 48-worker 평가를 유지한다.
 
 ### nurec2img 렌더 제외 목록과 441 평가 대조 (2026-10-07)
 
@@ -208,13 +210,12 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자가 누락된rear70fov클립의441평가포함여부/전방렌더와의기준차이/전체제외목록을요청했다. 302c5c99는441에포함되며평가는USDZ실시간렌더링이라오프라인PNG제외와독립임을원본목록/scene_audit/runtime코드/기존axe-v9점수로확인했다.
-- 초기1607→1603 준비에서route정보4개제외,후방추가1603+757→2342에서는후진18개제외를확인했다. 8/28학습후진판정강화이력과9/18후방타깃필터를구분했다. 기존전방요청에는18개후진이모두포함된다.
-- 확인된22개 렌더요청 제외클립ID/사유/단계/441포함/출처를CSV로작성했다: e2e_challenge/axe_local_eval/data/nurec_render_exclusions_20261007.csv. JSON감사보고서는runs/prepare-stage3-5cam-ep05/nurec_render_exclusions_audit.json. 22개unique/사유18+3+1/441교집합1을검증했다. 모델폴더와실행설정은변경없음.
-- 학습제외54개를렌더제외로오인하지않도록대조했다. manual_ddc_review30/ghost_annotation3도rear렌더완료대상이다.
-- 평가PID2231118지속실행,정상완료47개/신규ASL95개/최근runtime오류없음확인. 441과전체35주체jointfit자동진행을유지한다. VRAM이높다는이유만으로pause하지않는다.
+- 사용자 요청에 따라 13:13 KST 완료 226/441, 진행 46, 대기 169 및 최근 처리 속도를 확인했다. 48 driver/runtime 모두 실행 중이며 OOMKilled/재시작 0. 평가 종료 예상 14:30–14:50 KST; CPU joint leaderboard fit은 이후 자동 진행.
+- runs/leaderboard-stage3-5cam-ep05-20261007/progress_status_20261007.json에 시각/집계/속도/예상 범위를 기록하고 HANDOFF를 갱신했다. 모델 원본 및 실행 설정 변경 없음.
 
 ## 4. 다음 단계
+
+- 14:30–14:50 KST 예상은 현재 처리 속도에 따른 추정이다. 완료 표지 증가와 마지막 클립/집계 진행으로 갱신하며, CPU 35-subject fit 종료 여부도 확인한다.
 
 - 현재 실행을 중복 기동하지 않고 관찰한다:
   ```bash
@@ -240,6 +241,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
    준수 축이라 이 축을 건드리지 않는다 — 충돌 축에 직접 작용하는 항이 필요하다.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- 진행률/종료 예상 보고에 추가 사용자 결정 없음. 현재 실행을 그대로 유지한다.
 
 - 이번 실행의 GPU 범위/속도 우선순위는 사용자가 확정했으며 미결 질문 없음. 실제48-worker VRAM 피크와 처리량, 최종441 점수는 실행에서 확인한다. 아래 연구·제출 결정은 과거 기록.
 - 렌더 제외 이력/441 포함 여부 조사 미결 없음. 실제 평가는 해당 클립을 포함한 441개 실시간 렌더링을 유지한다.
