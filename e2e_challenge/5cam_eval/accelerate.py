@@ -195,13 +195,13 @@ def preserve_and_record(previous, *, keep_renderers):
         drivers=WORKERS,
         workers=WORKERS,
         renderers=WORKERS,
-        render_bundling="BATCH_RENDER_RGB",
+        render_bundling="NONE",
         model_batch_size=1,
-        driver_grpc_workers=1,
-        official_env_only=False,
-        deployment_extra_env=["ALPASIM_DRIVER_GRPC_WORKERS=1"],
+        driver_grpc_workers=4,
+        official_env_only=True,
+        deployment_extra_env=[],
         gpu_memory_limit_mib=81559,
-        renderer_camera_rpc_batch=6,
+        renderer_camera_rpc_batch=1,
         execution_phases=history,
         throughput_priority_user_authorized=True,
         historical_16_worker_topology_match=False,
@@ -253,8 +253,6 @@ def start_gpu(gpu):
             f"ALPASIM_CONTESTANT_REPLICA_INDEX={index}",
             "-e",
             f"ALPASIM_CONTESTANT_REPLICAS={WORKERS}",
-            "-e",
-            "ALPASIM_DRIVER_GRPC_WORKERS=1",
             IMAGE,
         ]
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
@@ -286,7 +284,9 @@ def main():
     assert len(stats.splitlines()) == 8
     if args.keep_renderers:
         assert all(int(row.split(",")[0]) < 65000 for row in stats.splitlines()), stats
-        log("Reusing warm renderer containers; restarting drivers with one gRPC worker")
+        log(
+            "Reusing warm renderers; original four driver gRPC workers and single-camera RPCs"
+        )
     else:
         assert all(
             int(row.split(",")[0]) < 4000 and int(row.split(",")[1]) <= 5
@@ -353,9 +353,11 @@ def main():
         ALPASIM_IMAGE="nvcr.io/nvidia/nre/nre-ga:26.04",
         NRE_IMAGE="nvcr.io/nvidia/nre/nre-ga:26.04",
         MPC_OVERRIDES="controller.gains.long_position_weight=0.25 controller.gains.lat_position_weight=1.0 controller.gains.idx_start_penalty=3",
-        EXTRA_OVERRIDES="wizard.baseport=19900 runtime.simulation_config.render_bundling=BATCH_RENDER_RGB",
+        EXTRA_OVERRIDES="wizard.baseport=19900 runtime.simulation_config.render_bundling=NONE",
     )
-    log("Starting 48-worker resume with bundled six-camera RGB requests")
+    log(
+        "Starting 48-worker resume with original four gRPC workers and single-camera RGB requests"
+    )
     wizard_log = ROOT / "runs" / f"{RUN_NAME}.speed48.wizard.log"
     with wizard_log.open("a") as stream:
         proc = subprocess.Popen(
