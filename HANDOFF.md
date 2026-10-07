@@ -1,24 +1,31 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-06 15:16 KST (Codex)
+마지막 갱신: 2026-10-07 09:42 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-2026-10-06 Codex: axe-v9 만점 미달 CSV 사유·근거 지표 추가 완료. 새 평가 없음.
-
-2026-10-06 Codex: axe-v9 만점 미달 클립 CSV 추출 완료. 새 평가 실행 없음.
-
-2026-10-06 Codex: 요청받은 441 통합 leaderboard CPU 재적합 완료. 새 시뮬레이션은 실행하지 않음.
-
-없음. 마지막 실행은 axe-v10 TensorRT 속도 측정(8클립 × FP32/TRT, 10-02 19:31 종료)이다.
-GPU 0-7 전부 반납됨(사용자가 이 측정에 한해 8장 전부 허락). 컨테이너 `axe-rr-trt8-*` 정리됨.
-
-- 이전 권한 제한 기록은 해소됨: 2026-10-06 통합 leaderboard 커밋은 `git push mine` 성공.
+2026-10-07 Codex: `stage3_5cam_ep05_20261007`의 441 평가 환경 준비. GPU 평가는 아직 실행하지 않음.
+- 전용 이미지: `alpasim-e2e-drivesuprim-stage3:5cam-ep05-20261007`.
+- GPU 4–7은 다른 `axe-rlreward-*` 작업이 점유 중. 해당 컨테이너/프로세스는 건드리지 않음. 0–3 사용 권한 없음.
+- 사용자 요청은 환경 준비이며 대기 프로세스는 자동으로 띄우지 않았다. `run.sh --wait`로 GPU 대기 후 실행할 수 있음.
 
 ## 2. 최근 결과
+
+### 5카메라 Stage 3 ep05 평가 준비 (2026-10-07)
+
+- 모델 원본: `../models/stage3_5cam_ep05_20261007/AXEv1.0-NuRec/`. 전체 SHA256SUMS 검증 성공. checkpoint SHA `79c625f3a29c49da6b9605b1062de5e8e6ec5da8391362b25507e35725bb8b8e` (epoch=4, step=4075).
+- axe-v9 이미지 digest `85134c1ea9f09d140be610ca063c50ec60e99980c392e5bf81fe6563af503765`로 의존성/정밀도를 고정하고, 제공된 navsim/nurec_pf 소스·Hydra 설정·4096 vocab·checkpoint를 올렸다. 기존 3카메라 이미지와 소스는 변경하지 않음.
+- 별도 드라이버 오버레이 `e2e_challenge/5cam_eval/drivesuprim_challenge/`: L1/L0/F0/R0/R1 순서, 후방 alias, 5개 동기화, [1,3,5,3,256,512] 영상/[1,3,5,4,4] 보정 입력. K377 pinhole 유지.
+- 신규 소스는 `ego_geom` 입력을 요구한다. 차량 크기와 rig→box 중심을 세션별 API에서 받아, 학습 feature builder·기존 evaluator의 2% shrink와 동일하게 `[length×0.98,width×0.98,centre_x]`를 전달한다.
+- 동일 441 USDZ에 후방 카메라 보정/촬영시각이 모두 존재함. offline NAVSIM의 418 유효 클립만 사용하는 방식으로 줄이지 않았다.
+- GPU 없는 CPU에서 strict checkpoint(missing=0/unexpected=0), 학습/실시간 영상 보정, 카메라 순서·누락·동기화, 실제 forward의 유한한 40×3 출력 확인. 최종 이미지 재검증 기록: `runs/prepare-stage3-5cam-ep05/cpu_validation.json`, `cpu-validation.log`, `scene_audit.json`, `evaluation_config.yaml`, `image-id.txt`.
+- 최종 이미지 protobuf 세션/5개 실시간 PNG 콜백 및 실제 CPU forward 재검증 통과(15.6초). `run.sh --check` 성공, GPU 점유 시 신규 실행을 exit75로 중단하며 run 폴더/드라이버가 생성되지 않음. leaderboard validator는 누락/중복 rollout/결측 score를 거부하는 것도 확인했고 기존 evaluator 테스트3개, ruff/black/bash 문법 검사를 통과했다.
+- `run.sh`: 4–7만 사용, 각 4 replicas(총16), 441×1 rollout, dev, lat/lon/idx=1/0.25/3, no video, FP32(기존 내부 ViT AMP 유지), reranker 없음. 원본 rollout 보존. GPU 점유/이미지 변경/결과 덮어쓰기 거부, `--resume` 제공.
+- `leaderboard.py`: 기존 독립 local26+reference8을 `existing_subjects.json`에 고정; 34개 동일 441 입력 확인. 완료 후 신규 `stage3-5cam-ep05`와 총35개를 CPU에서 ZOIB 재적합(seed42/1000epochs/16particles, rank MC100000/seed0). 결과 `runs/leaderboard-35-with-stage3-5cam-ep05/local_leaderboard.csv`, `capability_ranking.csv`, `paired_with_axe_v9.txt`.
+- 새 모델은 5카메라뿐 아니라 BEV 종방향 -56~56m, 격자56×112, key/value28×56, stage3 ep05 및 제공된 gate 소스/threshold도 바뀌었다. 동일 평가 계약에서 모델 구성 전체를 비교하며, 카메라 수만의 효과로 해석하지 않는다. 연구 질문과의 연결은 상황별 후방 입력 필요성을 분석할 441 주행 기록을 확보하는 데 있다.
 
 ### axe-v9 만점 미달 CSV 사유 추가 (2026-10-06)
 
@@ -183,30 +190,36 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자 요청대로 axe-v9 만점 미달 CSV에 score_band/reason_code/reason/collision_effect 및 충돌·progress 원본 지표, reported_failure_reason을 추가했다.
-- scene_score.py의 점수식, processing.py의 충돌 이후 집계 제외 규칙과 원본 JSON을 확인했다.
-- 기존 202개 클립, ID, 점수 문자열, 순서를 보존했다. 부분 점수 105개는 progress 부족이며 후방 충돌 기록 70개를 별도로 분류했다.
+- 제공된 5카메라 checkpoint가 기존 3카메라 드라이버로는 로딩/입력될 수 없어, axe-v9 digest 기반 별도 이미지와 5카메라 오버레이를 만들었다. 학습 소스/직사각형 BEV 설정을 그대로 적용했다.
+- 새 모델이 요구하는 per-session ego_geom을 평가 API와 연결했다. 441 전체 rear camera 존재 및 CPU 실제 추론을 검증했다.
+- GPU 여유 확인 후 실행/대기/재개 가능한 고정 계약 launcher와 기존34+신규1 joint leaderboard 자동 적합/사용자 형식 CSV/axe-v9 짝비교를 연결했다.
+- 빌드·검증은 GPU 없이 수행. 다른 연구원의 작업/원본 평가 결과는 변경하지 않았고 441 시뮬레이션 및 대기열은 시작하지 않았다.
 
 ## 4. 다음 단계
 
-- 사유가 추가된 기존 CSV 전달. 추가 작업 없음.
-
-- 요청한 axe-v9 만점 미달 CSV 전달. 추가 실행 필요 없음.
+- 현재 요청: 준비한 `e2e_challenge/5cam_eval/run.sh --check`로 확인 후, GPU 4–7 여유 시 `run.sh` 실행. 대기까지 맡길 때:
+  ```bash
+  cd /home/kaist5/data/junseong/AlpaSim-E2E-Challenge/alpasim
+  nohup e2e_challenge/5cam_eval/run.sh --wait > runs/leaderboard-stage3-5cam-ep05-20261007.progress.log 2>&1 &
+  ```
+- 기존 run이 없을 때만 신규 시작. 중단 후 본인 driver 잔여 컨테이너가 있으면 정확한 prefix로 대상을 출력/정리한 뒤 `run.sh --resume` 사용.
+- 완료 결과: `runs/leaderboard-stage3-5cam-ep05-20261007/aggregate/results-summary.json`; 전체35 fit은 launcher가 자동 실행한다. 후처리만 재실행할 때 `.venv/bin/python e2e_challenge/5cam_eval/leaderboard.py`. 완료 후 EXPERIMENTS.md에 원장 행을 추가하고 HANDOFF/커밋을 갱신한다.
 
 - 이후 비교는 261006 통합 적합을 사용하고, 새 441 결과 추가 시 전체 주체를 다시 적합한다.
 
-1. `git push mine`(사용자). 커밋이 여러 개 앞서 있다.
-2. (TensorRT 를 제출본에 넣기로 하면) TRT 런타임 라이브러리를 이미지에 넣고,
+1. (TensorRT 를 제출본에 넣기로 하면) TRT 런타임 라이브러리를 이미지에 넣고,
    엔진을 COPY 하고, `trt_backbone` 헬퍼를 `drivesuprim_challenge` 안으로 옮긴다.
    그다음 441 패리티를 확인한다. 더 빠르게 하려면 다음 후보는 BEV 인코더(약 14 ms,
    `FORCE_PYTORCH_MSDA=1` 이라 순수 PyTorch), trajectory head(12 ms), agent head(9 ms)다.
-3. 리랭커 결과를 상황 의존 가중으로 확장할지 결정. 지금 결과는 고정 γ 의 한계를
+2. 리랭커 결과를 상황 의존 가중으로 확장할지 결정. 지금 결과는 고정 γ 의 한계를
    보여주는 음성 증거이고, 다음 실험은 γ 를 상수가 아니라 driving context 의 함수로
    두는 쪽이 원래 명제를 직접 겨냥한다. γ 를 더 촘촘히 스윕하는 것은 곁가지다.
-4. aug-ep29-final 의 충돌만 axe-v9 수준으로 내리면 제출본을 넘는다. 리랭커는 route
+3. aug-ep29-final 의 충돌만 axe-v9 수준으로 내리면 제출본을 넘는다. 리랭커는 route
    준수 축이라 이 축을 건드리지 않는다 — 충돌 축에 직접 작용하는 항이 필요하다.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- 이번 5카메라 환경 준비에는 미결 질문 없음. GPU closed-loop 검증/441 점수는 GPU 여유 후 실제 실행 시 확인한다. 아래 연구·제출 결정은 과거 기록.
 
 - CSV 사유 추가 요청 미결 없음. 부분 점수의 물리적 원인(저속/정체 등)은 요약 지표만으로 단정하지 않음.
 
