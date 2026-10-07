@@ -122,9 +122,13 @@ def owned_containers():
     return sorted(set(names))
 
 
-def stop_owned(archive, *, keep_renderers=False):
+def stop_owned(archive, *, keep_renderers=False, keep_services=False):
     names = owned_containers()
-    if keep_renderers:
+    if keep_services:
+        names = [
+            name for name in names if name.startswith(PREFIX) or "-runtime-" in name
+        ]
+    elif keep_renderers:
         names = [name for name in names if f"{RUN_NAME}-renderer-" not in name]
     if not names:
         return
@@ -157,14 +161,18 @@ def stop_owned(archive, *, keep_renderers=False):
                 raise RuntimeError(result.stderr)
 
 
-def preserve_and_record(previous, *, keep_renderers):
+def preserve_and_record(previous, *, keep_renderers, keep_services=False):
     stamp = datetime.now(KST).strftime("%Y%m%d-%H%M%S")
     archive = RUN / "topology-history" / stamp
     archive.mkdir(parents=True)
     for p in RUN.iterdir():
         if p.is_file() and p.suffix in (".json", ".yaml"):
             shutil.copy2(p, archive / p.name)
-    stop_owned(archive / "driver-logs", keep_renderers=keep_renderers)
+    stop_owned(
+        archive / "driver-logs",
+        keep_renderers=keep_renderers,
+        keep_services=keep_services,
+    )
     completed = sorted(
         p.parent.parent.name for p in (RUN / "rollouts").glob("*/*/_complete")
     )
@@ -263,6 +271,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--keep-renderers", action="store_true")
+    parser.add_argument("--reuse-services", action="store_true")
     args = parser.parse_args()
     os.chdir(ROOT)
     previous = check()
@@ -271,7 +280,11 @@ def main():
     lock = acquire_lock()
     assert lock is not None
     (ROOT / ".cache/stage3-5cam-441.launcher.pid").write_text(str(os.getpid()) + "\n")
-    preserve_and_record(previous, keep_renderers=args.keep_renderers)
+    preserve_and_record(
+        previous,
+        keep_renderers=args.keep_renderers,
+        keep_services=args.reuse_services,
+    )
     stats = output(
         [
             "nvidia-smi",
@@ -282,7 +295,7 @@ def main():
         ]
     )
     assert len(stats.splitlines()) == 8
-    if args.keep_renderers:
+    if args.keep_renderers or args.reuse_services:
         assert all(int(row.split(",")[0]) < 65000 for row in stats.splitlines()), stats
         log(
             "Reusing warm renderers; original eight driver gRPC workers and single-camera RPCs"
@@ -359,13 +372,49 @@ def main():
         "Starting 48-worker resume with original eight gRPC workers and single-camera RGB requests"
     )
     wizard_log = ROOT / "runs" / f"{RUN_NAME}.speed48.wizard.log"
+    runtime_name = f"{RUN_NAME}-runtime-0-1"
+    log_proc = None
     with wizard_log.open("a") as stream:
-        proc = subprocess.Popen(
-            ["bash", str(ROOT / "e2e_challenge/axe_local_eval/run_curated_val.sh")],
-            env=env,
-            stdout=stream,
-            stderr=subprocess.STDOUT,
-        )
+        if args.reuse_services:
+            # Reuse the exact deployed configuration and ports. Regenerating
+            # them can change service ordering and recreate warm renderers.
+            subprocess.run(
+                [
+                    "docker",
+                    "compose",
+                    "--project-name",
+                    RUN_NAME,
+                    "-f",
+                    str(RUN / "docker-compose.yaml"),
+                    "up",
+                    "-d",
+                    "--no-deps",
+                    "--no-build",
+                    "runtime-0",
+                ],
+                env=env,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+            proc = subprocess.Popen(
+                ["docker", "wait", runtime_name],
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+            )
+            log_proc = subprocess.Popen(
+                ["docker", "logs", "--follow", runtime_name],
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+            )
+            log("Runtime restarted with all 57 warm native service containers retained")
+        else:
+            proc = subprocess.Popen(
+                ["bash", str(ROOT / "e2e_challenge/axe_local_eval/run_curated_val.sh")],
+                env=env,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+            )
     peaks = {str(g): 0 for g in GPUS}
     with (RUN / "vram-speed48.csv").open("a") as stream:
         stream.write(
@@ -391,6 +440,14 @@ def main():
             )
             time.sleep(10)
     assert proc.returncode == 0, f"Simulation exit={proc.returncode}; see {wizard_log}"
+    if args.reuse_services:
+        runtime_exit = output(
+            ["docker", "inspect", runtime_name, "--format", "{{.State.ExitCode}}"]
+        )
+        assert runtime_exit == "0", f"Runtime exit={runtime_exit}; see {wizard_log}"
+        assert (RUN / "aggregate/results-summary.json").is_file()
+        if log_proc is not None:
+            log_proc.wait(timeout=30)
     log(
         "Simulation complete; releasing evaluation containers before joint CPU leaderboard fit"
     )

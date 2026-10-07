@@ -112,6 +112,34 @@ def _env_flag(name: str, default: bool = False) -> bool:
     }
 
 
+def _configure_bev_deformable_attention(device: torch.device) -> None:
+    """Honor the existing axe-v9 operator setting without editing model sources.
+
+    The supplied source dispatches to an installed MMCV CUDA extension even
+    when its kernels do not support this GPU. That extension prints an error
+    and returns zeros instead of raising. Use the model's own PyTorch fallback
+    when the inherited deployment environment requests it, as axe-v9 does.
+    """
+    from navsim.agents.backbones.bevformer import spatial_cross_attention as bev
+
+    if _env_flag("DRIVESUPRIM_FORCE_PYTORCH_MSDA"):
+        bev._HAS_CUDA_MSDA = False
+        LOGGER.info("BEV deformable attention: original PyTorch fallback (axe-v9 env)")
+    if device.type != "cuda":
+        return
+    # A finite model output alone does not detect silently zeroed attention.
+    # A constant value sampled at its centre must remain one.
+    with torch.inference_mode():
+        value = torch.ones((1, 4, 1, 1), device=device)
+        shapes = torch.tensor([[2, 2]], dtype=torch.long, device=device)
+        starts = torch.tensor([0], dtype=torch.long, device=device)
+        locations = torch.full((1, 1, 1, 1, 1, 2), 0.5, device=device)
+        weights = torch.ones((1, 1, 1, 1, 1), device=device)
+        actual = bev._deform_attn(value, shapes, starts, locations, weights)
+        torch.testing.assert_close(actual, torch.ones_like(actual), rtol=0, atol=0)
+    LOGGER.info("BEV GPU operator check passed: constant sample = 1")
+
+
 class DriveSuprimPolicy:
     """Load DriveSuprim and expose an AlpaSim-friendly prediction method."""
 
@@ -152,6 +180,8 @@ class DriveSuprimPolicy:
 
         if resolved.type != "cuda":
             LOGGER.warning("CUDA is unavailable; DriveSuprim will run on CPU")
+
+        _configure_bev_deformable_attention(resolved)
 
         for path, label in (
             (checkpoint_path, "checkpoint"),

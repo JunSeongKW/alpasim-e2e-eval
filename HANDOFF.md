@@ -1,24 +1,25 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 11:39 KST (Codex)
+마지막 갱신: 2026-10-07 11:50 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-2026-10-07 Codex: 사용자 요청으로 stage3_5cam_ep05_20261007의441 평가를GPU0–7 전체/각6/총48 worker로 재개 중이다. 사용자 최종 조건은81,559 MiB 내에서 시간 단축 및 기존 gRPC/렌더링 설정 유지이다. AGENTS의0–3/16-worker 제한은 이번 명시 요청이 우선한다.
-- 최종: 원본 이미지의 gRPC8, 카메라별 render_rgb/NONE, 모델batch1, driver CPU8/32GiB, dev441×1/MPC1/.25/3/하모나이저/채점/정밀도 모두 원래대로. 모델 폴더/코드/가중치/BEV/threshold .6/.4 변경 없음.
-- 원래 GPU4–7/16-worker에서 완료된33개를 보존하고408 jobs 재개. BATCH_RENDER_RGB 시도는GPU1이81,038 MiB/잔여52 MiB에 도달해 중단했다. 해당 구간 신규완료0이며 미완료48은 topology-history로 이동했다. gRPC1 시도는 사용자 요청으로 실제driver가 시작되기 전에 취소했다.
-- 실제 기존 gRPC는image Config.Env의8이다. 앞서소스 fallback4를 잘못 보고했으며 컨테이너48개가원래image env8을유지함을검증했다. CUDA 버퍼 증가의 최종 원인은 단정하지 않는다.
-- 현재launcher PID2053058(`.cache/stage3-5cam-441.launcher.pid`), 새기동11:30 KST. 로그 `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log`, `.speed48.wizard.log`. VRAM은run폴더 `vram-speed48.csv`/`vram-speed48-peaks.json`; 과거81GB peak는topology-history에보관됐다.
-- renderer 재사용을 시도했지만wizard 포트재배치(controller가19900부터/renderer19948–19995)로Docker가 재기동했다. 현재renderer48 directhealth 모두26.4.146으로응답했고runtime의마지막연결확인을기다린다. 재기동을중복실행하지않는다.
-- 최종공통설정검증: `runs/prepare-stage3-5cam-ep05/deployment-speed48-original-rpc-validation.json`. 전체simulation_config/eval/controller/driver/traffic가원래16-worker dev와완전히동일하다. 실행병렬도/서비스배치/포트만변경한다. 완료후GPU해제와 기존34+신규1 CPU joint leaderboard fit자동진행.
+2026-10-07 Codex: 사용자 요청으로 stage3_5cam_ep05_20261007의 441 평가를 GPU 0–7 / 각 6 / 총 48 worker로 진행한다. gRPC 8과 카메라별 NONE 렌더링은 원래 설정을 유지한다. 사용자는 높은 VRAM 사용량만으로 중단하지 말고 실제 OOM/평가 실패에만 대응하라고 명시했다. AGENTS의 GPU/16-worker 기본값보다 이번 요청이 우선한다.
+- **중요한 오류 수정**: 제공된 spatial_cross_attention.py는 기존 이미지의 DRIVESUPRIM_FORCE_PYTORCH_MSDA=1을 읽지 않았다. 설치된 MMCV CUDA 커널이 이 GPU를 지원하지 않아 매 추론에서 오류를 출력하고 0 텐서를 반환했다. 단위 검증 입력에서 실제 0 / 정답 1을 확인했다. 이전 GPU 검증의 finite 출력만으로는 이를 발견하지 못했다.
+- 별도 평가 policy 어댑터에서 해당 환경변수를 적용해 **원본 모델에 이미 있는 PyTorch fallback**을 선택한다. axe-v9가 사용한 같은 연산 경로다. 모델 원본 폴더/가중치/소스/BEV/threshold .6/.4/gate는 변경하지 않았다. policy 시작 때 GPU 샘플이 정확히 1인지 검증해 잘못된 커널이면 기동 실패하도록 했다.
+- 새 이미지 ID `sha256:b798c846bc8f44ebc702f189f803b8da8accd437fc824e04020cfcb7a88777c7`. 이전 잘못된 이미지 ed845b...와 그 33개 완료/48개 진행 기록은 `runs/leaderboard-stage3-5cam-ep05-20261007/topology-history/20261007-115013-invalid-cuda/`에 삭제 없이 격리했다. **33개를 정상 점수로 재사용하지 않고 441개 전부 재평가**한다.
+- CPU/CUDA 실제 전체 forward와 strict checkpoint, 5카메라 보정/순서/동기화/ego_geom 검증을 새 이미지에서 통과했다. CUDA kernel 오류가 없고 GPU operator assertion 통과. 원본 SHA256SUMS 전체 재검증도 성공했다. 기록은 `runs/prepare-stage3-5cam-ep05/{cpu,gpu}_validation_fixed_operator.json` 및 해당 로그, `invalid_cuda_operator.json`.
+- launcher `e2e_challenge/5cam_eval/accelerate.py --reuse-services`: 기존 57 native renderer/physics/controller와 정확한 compose/network 설정을 보존하고 driver/runtime만 재시작한다. config 재생성에 따른 포트 변경/renderer 재기동을 피한다. PID는 `.cache/stage3-5cam-441.launcher.pid`, 로그는 `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log` / `.speed48.wizard.log`.
+- 최종 설정: gRPC 8, NONE, 모델 batch 1, driver CPU 8/32GiB, dev441×1/MPC1/.25/3/하모나이저/채점/정밀도 동일. VRAM은 run의 `vram-speed48.csv`/`vram-speed48-peaks.json`에 기록한다. 완료 후 GPU 해제 및 기존34+신규1 CPU joint leaderboard fit 자동 진행.
 
 ## 2. 최근 결과
 
 ### 5카메라 Stage 3 ep05 평가 준비 (2026-10-07)
 
+- **11:50 정정**: 이전 CUDA 검증은 unsupported MMCV kernel이 0을 반환해도 finite만 검사하여 잘못 통과했다. GPU 결과 33개를 무효로 격리하고, 별도 어댑터가 기존 axe-v9 환경변수를 존중하도록 수정했다. 원본 폴더 변경 없이 새 CPU/CUDA 전체 forward 및 constant-sample=1 검증을 통과했다. 아래의 초기 이미지/기동 기록은 수정 전 이력이다.
 - 모델 원본: `../models/stage3_5cam_ep05_20261007/AXEv1.0-NuRec/`. 전체 SHA256SUMS 검증 성공. checkpoint SHA `79c625f3a29c49da6b9605b1062de5e8e6ec5da8391362b25507e35725bb8b8e` (epoch=4, step=4075).
 - 원본 폴더는 변경하지 않았으며 사용자 재확인 후 전체 체크섬 검사를 다시 통과했다. 원본 YAML의 drivable threshold=0.6 / agent confidence threshold=0.4, 원본 `_build_feasibility_mask`, ego_geom의 length/width×0.98을 유지한다. 별도 오버레이에서 시도했던 axe-v9 threshold=0.5/0.3·구 gate·shrink 미적용 변경은 취소하고 원본 구성으로 이미지를 재빌드했다.
 - 모델 YAML을 변환할 때 바꾸는 것은 checkpoint/vocab 배포 경로, training=False/only_ori_input=True, pretrained 초기 다운로드 방지, README의 평가 명령에 맞춘 use_route=True뿐이다. 5개 카메라는 원본의 bev_num_cameras=5로 결정된다. flat-image 경로의 n_camera=3도 원본값으로 보존한다. 학습용 분기를 추론용으로 전환하고 카메라/API 입력을 연결하며 모델 내부 튜닝 값은 덮어쓰지 않는다.
@@ -198,11 +199,12 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 실제 image Config.Env의ALPASIM_DRIVER_GRPC_WORKERS=8과48개 컨테이너env 일치를확인했다. 앞서4는소스fallback값을잘못보고한것으로provenance/HANDOFF/log설명을8로정정했다. 실행에는gRPC추가override가없다.
-- 사용자최종요청대로 gRPC8/NONE/모델batch1과 원래driverCPU8/32GiB를 유지한다. CUDA 모델/원본threshold/gate/BEV/MPC/score/source/image불변. onlyGPU0–7/각6/총48 병렬배치변경.
-- GPU1의81,038MiB(여유52MiB) 때문에BATCH를pause/복구했다. gRPC1 실제배포는없었고BATCH새완료도0이다. 최종441점수는모두NONE 방식이다. 완료33보존/미완료48 rename 후408 jobs재개.
-- renderer재사용시도는wizard의포트할당순서가달라져Docker재기동으로이어졌다. 이로인한startup지연을사용자에게보고했다. 현재renderer48 health확인/원래설정 전체동일검증을완료했고 실제주행재개확인중이다.
-- 최종검증 `runs/prepare-stage3-5cam-ep05/deployment-speed48-original-rpc-validation.json`, 실행/VRAM로그는동일run speed48이름. acceleratorPID2053058과기존체크포인트/이미지 고정. 자동35주체CPUfit연결유지. ruff/black통과.
+- 실제 GPU operator 오류를 발견했다. 원래 모델의 CUDA dispatch가 기존 FORCE_PYTORCH_MSDA 환경변수를 무시해 unsupported MMCV kernel에서 0 텐서를 받았다. 상수 샘플의 실제 0 / 정답 1 검증으로 점수 오염을 확인했다.
+- 별도 policy 어댑터에서 원본 PyTorch fallback을 선택해 axe-v9와 같은 환경을 적용하고, GPU operator 결과 검증을 startup에 추가했다. 원본 모델 폴더/소스/가중치/설정과 gRPC 8/NONE/MPC/정밀도는 불변이다.
+- 새 이미지에서 CPU 및 CUDA 전체 5카메라 forward, exact checkpoint, 보정/입력/ego_geom 검증 통과. 원본 전체 SHA256SUMS 통과. 검증 결과 `runs/prepare-stage3-5cam-ep05/*_validation_fixed_operator.json`와 로그.
+- 잘못된 33개 완료와 진행 중 결과를 topology-history/20261007-115013-invalid-cuda에 rename하여 보존하고 leaderboard에서 제외했다. 441개를 새 환경으로 재평가한다.
+- accelerate.py에 --reuse-services 추가: 정확한 기존 compose/ports를 사용하고 57 native 서비스는 유지해 driver/runtime만 재기동한다. runtime 자체가 평가 집계를 수행하며 종료코드/집계 파일을 확인한 뒤 35 주체 joint fit을 자동 실행한다.
+- 사용자 최신 요청대로 VRAM이 높다는 이유만으로 pause하지 않는다. 실제 OOM/평가 오류에만 대응한다. ruff/black 통과. 새 실행의 VRAM/처리량을 확인하고 완료 후 원장과 leaderboard를 갱신한다.
 
 ## 4. 다음 단계
 
@@ -214,7 +216,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
   tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007.speed48.wizard.log
   ```
 - 모델의 원본 gate/threshold/BEV/입력 구성을 유지하며 비교한다. 기존 34개에는 과거 MPC·reranker 차이가 있는 주체도 있으므로, 동일 계약의 axe-v9와 짝비교하고 전체35 leaderboard는 각 제출 구성의 비교로 해석한다.
-- 현재48-worker 실행은 중복 시작하지 않는다. topology-history의 완료ID/모델고정값/VRAM 피크를 확인하고 OOM·인프라 오류 발생 시 본인 컨테이너만 정리하여 같은 완료 클립을 보존해 재개한다. 과거 `run.sh --resume`는16-worker용이다.
+- 현재 48-worker 실행은 중복 시작하지 않는다. unsupported CUDA 결과가 있는 topology-history는 재사용하지 않는다. 수정 후 완료 결과만 보존/재개한다. VRAM이 높다는 이유만으로 중단하지 않고 실제 오류에 대응한다. warm native 서비스를 유지할 때 `accelerate.py --reuse-services`를 사용한다. 과거 `run.sh --resume`는 16-worker용이다.
 - 완료 결과: `runs/leaderboard-stage3-5cam-ep05-20261007/aggregate/results-summary.json`; 전체35 fit은 launcher가 자동 실행한다. 후처리만 재실행할 때 `.venv/bin/python e2e_challenge/5cam_eval/leaderboard.py`. 완료 후 EXPERIMENTS.md에 원장 행을 추가하고 HANDOFF/커밋을 갱신한다.
 
 - 이후 비교는 261006 통합 적합을 사용하고, 새 441 결과 추가 시 전체 주체를 다시 적합한다.
@@ -232,7 +234,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 ## 5. 미결 질문 (사용자 결정 필요)
 
 - 이번 실행의 GPU 범위/속도 우선순위는 사용자가 확정했으며 미결 질문 없음. 실제48-worker VRAM 피크와 처리량, 최종441 점수는 실행에서 확인한다. 아래 연구·제출 결정은 과거 기록.
-- 사용자최종조건gRPC8/NONE유지로실행하며추가결정사항없음. 최종점수/35주체순위/실제throughput은평가완료후산출한다.
+- gRPC 8/NONE/원본 모델 유지 확정. GPU 호환 오류 수정은 평가 환경 복구이며 원본 모델 변경이 아니다. 이전 33개는 재평가한다. VRAM 근접만으로 중단하지 말라는 조건을 유지한다. 최종 점수/35 주체 순위/실제 처리량은 평가 완료 후 산출한다.
 - 원본 설정 유지 여부는 사용자가 확정했다. 별도 임계값 튜닝이나 axe-v9 gate 이식은 진행하지 않는다.
 
 - CSV 사유 추가 요청 미결 없음. 부분 점수의 물리적 원인(저속/정체 등)은 요약 지표만으로 단정하지 않음.

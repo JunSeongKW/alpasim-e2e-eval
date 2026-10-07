@@ -75,6 +75,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     args = parser.parse_args()
     started = time.monotonic()
     torch.set_num_threads(4)
@@ -202,7 +203,7 @@ def main():
         vocab_path=os.environ["DRIVESUPRIM_VOCAB_PATH"],
         config_path=os.environ["DRIVESUPRIM_CONFIG_PATH"],
         backbone_type=os.environ["DRIVESUPRIM_BACKBONE_TYPE"],
-        device="cpu",
+        device=args.device,
     )
     assert policy._config.bev_num_cameras == 5
     assert (policy._config.bev_h, policy._config.bev_w) == (56, 112)
@@ -225,14 +226,14 @@ def main():
         )
         assert observed["bev_imgs"] == [1, 3, 5, 3, 256, 512]
         assert observed["lidar2img"] == [1, 3, 5, 4, 4]
-        np.testing.assert_allclose(features["ego_geom"].numpy(), ego_geom[None])
+        np.testing.assert_allclose(features["ego_geom"].cpu().numpy(), ego_geom[None])
         np.testing.assert_allclose(
-            features["bev_imgs"][0, 0, :, 0, 128, 256].numpy(),
+            features["bev_imgs"][0, 0, :, 0, 128, 256].cpu().numpy(),
             np.arange(1, 6) * 20 / 255,
             atol=1e-6,
         )
         np.testing.assert_allclose(
-            features["lidar2img"][0, 0].numpy(),
+            features["lidar2img"][0, 0].cpu().numpy(),
             np.stack([projections[n] for n in CAMERA_ORDER]),
         )
         return real_run(features, **kwargs)
@@ -259,7 +260,8 @@ def main():
     assert np.isfinite(prediction.poses).all()
     report = {
         "passed": True,
-        "device": "cpu",
+        "device": args.device,
+        "deformable_attention": "original PyTorch fallback / axe-v9 env",
         "clipgt_id": fixture["clipgt_id"],
         "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
         "camera_order": CAMERA_ORDER,
@@ -269,12 +271,13 @@ def main():
         "protobuf_session_and_five_live_image_callbacks": "passed",
         "training_vs_live_rectification_mae": rectification,
         "output_shape": list(prediction.poses.shape),
+        "output_poses": prediction.poses.tolist(),
         "ego_geom_from_api": ego_geom.tolist(),
         "elapsed_seconds": time.monotonic() - started,
     }
     args.report.write_text(json.dumps(report, indent=2) + "\n")
     print(
-        "PASS: strict checkpoint, live calibration, five-camera inputs, finite real CPU forward"
+        f"PASS: strict checkpoint, live calibration, five-camera inputs, real {args.device} forward"
     )
 
 
