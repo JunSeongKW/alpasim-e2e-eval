@@ -1,13 +1,13 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 17:30 KST (Codex)
+마지막 갱신: 2026-10-07 17:31 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- 2026-10-07 17:29 ETA 스냅샷: 신규disjoint512 0/441완료·48개실제진행, 첫묶음진행률중앙값72.8%, GPU0–7 util100%, VRAM63–68GiB 정상. 초기48개진행/최근5분속도 기반 평가+36fit 예상20:10전후(대략19:45–20:30 KST), 첫묶음완료전 추정이다. 근거 run/eta_snapshot.json 및 eta_snapshot_workers.json. 설정/실행 변경 없음.
+- 2026-10-07 17:29 ETA 스냅샷: 신규disjoint512 0/441완료·48개실제진행, 첫묶음진행률중앙값72.8%, GPU0–7 util100%, VRAM약63,000–68,000MiB 정상. 초기48개진행/최근5분속도 기반 평가+36fit 예상20:10전후(대략19:45–20:30 KST), 첫묶음완료전 추정이다. 근거 run/eta_snapshot.json 및 eta_snapshot_workers.json. 설정/실행 변경 없음.
 
 - 신규 사용자 요청: `../models/20261007_vits512_disjoint_baseline_stage3_epoch04-step4075.ckpt`를 **axe-v9와 동일한 모델 코드·추론 설정에서 가중치만 교체**해 441 curated_val/dev/각1rollout 평가. train/val 분리 학습은 사용자 제공 설명. GPU0–7·속도 우선 명시 승인에 따라 48 driver/worker/renderer(각GPU6개), gRPC8/batch1/NONE/FP32(원래ViT AMP)/MPC1/.25/3/ego footprint 유지. 5cam의 임계값·BEV·코드는 가져오지 않는다.
 - 준비 검증 완료: 새 SHA256 `e8f87989206f15586218f70b2a6977ec83fe6e82ce983f144b66a6605650f9f1`, epoch4/step4075, 1344개 키/shape 모두 axe-v9 checkpoint364c8과 일치, camera embeddings3. base image85134에 ckpt파일 하나만 추가한 image `sha256:8b91cb765976c487271422f39b53ca50be179d79c3f851a729e7f19e0779bfd3`; 모든 base layer/env/entrypoint/cmd 동일. 새 checkpoint 원본 수정 없음.
@@ -235,7 +235,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자종료예정문의에 신규disjoint512 job만 읽기전용으로확인했다. 17:29 KST 0/441완료·48실제진행·첫묶음중앙값72.8%·GPU0–7 util100%·VRAM63–68GiB, 정상진행이다.
+- 17:31 KST 첫2개 완료(2/441)를 추가확인했다. 초기예측범위는유지하며 실제완료율안정전 확정ETA로취급하지않는다.
+- 사용자종료예정문의에 신규disjoint512 job만 읽기전용으로확인했다. 17:29 KST 0/441완료·48실제진행·첫묶음중앙값72.8%·GPU0–7 util100%·VRAM약63,000–68,000MiB, 정상진행이다.
 - 실제worker별로그에서현재sim시간/총steps/첫시작walltime/최근5분속도를측정하여 run/eta_snapshot_workers.json 및 eta_snapshot.json 저장. 초기묶음기준약20:10전후(19:45–20:30KST/CPU36fit포함)로보고한다. 첫묶음완료전추정이므로 첫완료클립이쌓이면 실제완료처리량으로갱신한다.
 - 모델/채점/MPC/48worker/컨테이너와실행기에변경없음. 원본체크포인트/5cam소스/기존리더보드는보존한다.
 
