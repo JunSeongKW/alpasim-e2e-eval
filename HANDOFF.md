@@ -1,18 +1,18 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-07 10:30 KST (Codex)
+마지막 갱신: 2026-10-07 10:59 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-2026-10-07 Codex: 사용자 요청으로 `stage3_5cam_ep05_20261007`의 441 평가를 GPU 4–7에서 실행 중이다. 16개 드라이버/CUDA 모델 로딩, 모든 서비스 연결 및 renderer·physics 시나리오 검증을 통과했고 첫 16개 rollout이 생성됐다.
-- 사용자 확정 조건: 제공된 모델 디렉토리의 원래 설정과 추론 코드를 보존한다. axe-v9 내부 설정으로 통일하지 않는다. 공통 조건은 외부 AlpaSim 평가 계약이다.
-- 전용 이미지: `alpasim-e2e-drivesuprim-stage3:5cam-ep05-20261007`.
-- 실행 직전 GPU 4–7이 모두 0 MiB/0%인 것을 확인했다. 다른 작업을 중단하지 않았으며 0–3은 사용하지 않는다.
-- 분리된 세션의 launcher PID `1755493` (`.cache/stage3-5cam-441.launcher.pid`), 기동 2026-10-07 10:22 KST. 로그: `runs/leaderboard-stage3-5cam-ep05-20261007.progress.log`, driver 로그: 동일 run 폴더의 `driver-start.log`. 중복 실행하지 않는다.
-- simulator 실행은 10:26 KST에 시작했다. 세부 진행 로그: `runs/leaderboard-stage3-5cam-ep05-20261007.wizard.log`. Compose project는 run 이름과 같고, 16 renderer/4 physics/16 controller replicas/runtime 및 16 external drivers 모두 실행 중이다. 첫 16개 rollout 생성은 완료 점수 16개를 뜻하지 않는다.
+2026-10-07 Codex: 사용자 최신 요청은 **GPU 0–7 전체**, GPU당 **81,559 MiB 이내에서 평가 시간 최소화**이다. 기존 16-worker 평가가 동작하는 동안 48-worker 전환을 검증했고, 별도 `accelerate.py`로 완료 클립을 보존하여 전환한다. AGENTS의 GPU 0–3/16-worker 기본 제한은 이번 사용자 명시 요청이 우선한다.
+- 제공된 모델 디렉토리·이미지·checkpoint·원본 추론/threshold/BEV는 그대로 유지한다. dev/441×1/MPC 1/0.25/3/채점/하모나이저/정밀도 동일.
+- 새 배치 대상은 렌더러의 같은 시각 6개 카메라 RPC(`BATCH_RENDER_RGB`)이다. 모델 batch=1은 원본 유지. GPU당 6개 driver+renderer, 총48 rollouts/48 controllers/8 physics로 시작한다. 7개는 기존 피크 추산상 GPU 한도 초과 위험이 있어 실제48-worker 피크/속도를 확인한다.
+- 현재 원래 launcher PID 1755493이 실행 중이며 신규 launcher는 lock 획득 시 본인 기존 process group 및 정확한 run project/driver names만 정지한다. 완료 `_complete` 클립 보존, 미완료 폴더는 `topology-history/`로 이동하며 대량 삭제하지 않는다.
+- 신규 로그: `runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log`, `.speed48.wizard.log`. VRAM: run 폴더 `vram-speed48.csv`, `vram-speed48-peaks.json`. PID: `.cache/stage3-5cam-441.launcher.pid`.
+- 48-worker dry run/Compose/공통 설정 비교 완료: `runs/prepare-stage3-5cam-ep05/deployment-speed48-validation.json`. 모델 변경 외 성능 비교의 공통 채점 조건은 유지하나 과거16-worker와 실행 병렬도/RPC 묶음 방식은 다르며 provenance에 두 실행 구간을 기록한다.
 
 ## 2. 최근 결과
 
@@ -197,23 +197,23 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- GPU 여유 시 즉시 실행 가능한지 원본 체크섬·이미지·offline CLI·renderer cache·포트·디스크·실제 441개 sceneset을 다시 점검했다. 실제 launcher의 simulator 스크립트를 dry run해 설정/Compose 생성과 441·16 replicas·MPC 계약을 검증했다.
-- CPU 전용 임시 컨테이너에서 실제 entrypoint를 평가 보안/파일시스템 조건 그대로 기동하고 strict checkpoint/실제 gRPC get_version을 확인한 뒤 해당 컨테이너만 종료·제거했다. 원본 모델·추론 설정은 이번 검토에서 수정하지 않았다.
-- 사용자가 GPU 4–7 즉시 평가를 요청했다. GPU가 모두 비어 있는 것을 확인한 뒤 detached nohup launcher PID 1755493을 기동했다. 결과 run은 runs/leaderboard-stage3-5cam-ep05-20261007, 기존34+신규1 joint fit/CSV는 완료 후 자동 생성된다. 연구 질문은 상황별 후방 입력 필요성을 분석할 441 주행 기록을 확보하는 것이다.
-- 사전 검증은 runs/prepare-stage3-5cam-ep05/deployment_validation.json 및 driver_deployment_validation.json, 실행 로그는 runs/leaderboard-stage3-5cam-ep05-20261007.progress.log에 남겼다. 모델 source commit fc51304와 image ID ed845b1936a81caa718dae6b70acacbbd21dbb30e9f4b21308c6b09e95c16bfd를 고정했다.
-- 후속 기동 확인: 16개 driver와 모든 backend가 실행 중이며 runtime에서 모든 서비스 연결/physics·renderer validation/441 scenes 등록 성공, 첫16 rollout.asl 파일 생성까지 확인했다. 실제 5카메라 CUDA forward 검증도 성공해 gpu_validation.json에 남겼다. 평가 결과를 기다리며 launcher가 총35 leaderboard를 자동 적합한다.
+- 사용자 명시 요청으로 GPU 0–7과 81,559 MiB 한도에서 평가 시간 단축을 우선한다. 원래 실행 중 shell은 수정하지 않고 `e2e_challenge/5cam_eval/accelerate.py`를 추가했다.
+- 48 driver/worker/renderer, GPU당6, 48 controller/8 physics 및 BATCH_RENDER_RGB를 적용한다. 기존 완료 클립은 보존, 미완료 클립은 이름 변경 이동 후 autoresume; 공유 머신의 다른 작업은 정리 대상에서 제외한다.
+- 원본 이미지 ID/checkpoint/모델 설정/정밀도/추론 batch1 유지. dev441/MPC/force-GT/하모나이저/채점/traffic/driver config 동일성을 dry run으로 대조했다. 배치 렌더 이벤트/서비스 테스트13개와 ruff/black 통과. 실제 renderer의 batch_render_rgb 지원도 확인했다.
+- 검증 경로 `runs/prepare-stage3-5cam-ep05/deployment-speed48-validation.json`, 신규 진행 로그 `.speed48.progress.log`, VRAM 10초 telemetry. 완료 후 GPU 해제와 기존34+신규1 CPU joint leaderboard 적합은 자동 진행한다.
+- 연구 질문은 상황별 후방 입력 필요성을 분석할 441 주행 기록을 확보하는 것이다. 이번 변경 자체는 모델 실험이 아닌 평가 처리량 개선이다.
 
 ## 4. 다음 단계
 
 - 현재 실행을 중복 기동하지 않고 관찰한다:
   ```bash
   cd /home/kaist5/data/junseong/AlpaSim-E2E-Challenge/alpasim
-  tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007.progress.log
+  tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007.speed48.progress.log
   tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007/driver-start.log
-  tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007.wizard.log
+  tail -n 30 runs/leaderboard-stage3-5cam-ep05-20261007.speed48.wizard.log
   ```
 - 모델의 원본 gate/threshold/BEV/입력 구성을 유지하며 비교한다. 기존 34개에는 과거 MPC·reranker 차이가 있는 주체도 있으므로, 동일 계약의 axe-v9와 짝비교하고 전체35 leaderboard는 각 제출 구성의 비교로 해석한다.
-- 기존 run이 없을 때만 신규 시작. 중단 후 본인 driver 잔여 컨테이너가 있으면 정확한 prefix로 대상을 출력/정리한 뒤 `run.sh --resume` 사용.
+- 현재48-worker 실행은 중복 시작하지 않는다. topology-history의 완료ID/모델고정값/VRAM 피크를 확인하고 OOM·인프라 오류 발생 시 본인 컨테이너만 정리하여 같은 완료 클립을 보존해 재개한다. 과거 `run.sh --resume`는16-worker용이다.
 - 완료 결과: `runs/leaderboard-stage3-5cam-ep05-20261007/aggregate/results-summary.json`; 전체35 fit은 launcher가 자동 실행한다. 후처리만 재실행할 때 `.venv/bin/python e2e_challenge/5cam_eval/leaderboard.py`. 완료 후 EXPERIMENTS.md에 원장 행을 추가하고 HANDOFF/커밋을 갱신한다.
 
 - 이후 비교는 261006 통합 적합을 사용하고, 새 441 결과 추가 시 전체 주체를 다시 적합한다.
@@ -230,7 +230,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 5. 미결 질문 (사용자 결정 필요)
 
-- 이번 5카메라 평가 실행에는 미결 질문 없음. GPU closed-loop/441 점수는 현재 실행에서 확인한다. 아래 연구·제출 결정은 과거 기록.
+- 이번 실행의 GPU 범위/속도 우선순위는 사용자가 확정했으며 미결 질문 없음. 실제48-worker VRAM 피크와 처리량, 최종441 점수는 실행에서 확인한다. 아래 연구·제출 결정은 과거 기록.
 - 실제 CUDA 추론과 서비스/441 scenes 검증은 통과했으며 최종 점수·35주체 순위는 평가 완료 후 산출한다.
 - 원본 설정 유지 여부는 사용자가 확정했다. 별도 임계값 튜닝이나 axe-v9 gate 이식은 진행하지 않는다.
 
