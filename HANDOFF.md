@@ -1,16 +1,19 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-08 16:06 KST (Claude Code)
+마지막 갱신: 2026-10-08 17:00 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- `stage3-vitl512-3layer-lr1` **실행 중** (16:03 시작, launcher pid 2362614, GPU 0–7 × **5** 드라이버 = 40 worker, `--prune-asl`). ViT-L 드라이버가 ViT-S 보다 ~2.3 GB 커서(smoke peak 3265 vs 970 MiB) 768 피크 78.3 GB 기준 6개면 81 GB 초과 → 5개(추정 피크 77.5 GB). 진행 `runs/leaderboard-stage3-vitl512-3layer-lr1-20261008/status.json`.
+- `stage3-vitl512-3layer-lr1` **재실행 중** (16:54, launcher pid 2560390, GPU 0–7 × 5 = 40 worker, `--prune-asl`, `XFORMERS_DISABLED=1`).
+  - **첫 실행(16:03–16:45)은 무효**: axe-v9 이미지의 xformers 에 sm90 용 fmha 커널이 없어 DINOv2 ViT-L attention 이 `FATAL: kernel fmha_cutlassF... built for sm50` 을 매 호출 수십만 줄 출력하고 garbage 를 반환 → 후보 점수 전부 NaN, 35분간 예측 2–3회. smoke 는 출력 tensor 가 유한해서 통과했다. 원본은 `runs/leaderboard-stage3-vitl512-3layer-lr1-20261008-invalid-xformers/` 로 이동(삭제 안 함).
+  - 해결: 번들 자체의 스위치 `XFORMERS_DISABLED=1`(MemEffAttention → 표준 Attention, 수학적으로 동일) 를 model.json `extra_env` 로 vitl 드라이버에만 준다. smoke 는 이제 FATAL 한 줄이라도 있으면 실패. 재 smoke: FATAL 0, strict, BEV 99.1%.
+  - vits512_6layer / vits768 의 드라이버 로그는 FATAL 0, NaN 0, 예측 83,496 회씩 → 이 문제와 무관(ViT-S 는 이 xformers 레이어를 안 씀).
 - 완료 후: `pkg3cam_leaderboard.py vits512_6layer vits768_3layer vitl512_3layer_lr1` → 39주체 최종 적합.
-- 디스크 여유 ~66 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기. models/ 의 이미 해제·검증된 압축 원본(~7.4 GB)도 후보.
-- 15:57 체인 smoke 실패는 13:26 에 취소한 smoke 컨테이너가 데몬 지연 뒤 Created 로 남아 이름 충돌한 것. 내 Created 컨테이너 2개 제거 후 smoke 통과.
+- **시나리오 분석(차종·국가) 완료**: `../scenario_analysis/analysis_result_vehicle_country/` (README.md, figures 7, tables). 팀 레포 쪽이라 커밋 안 함.
+- 디스크 여유 ~65 GB. 과거 ASL 540 GB 삭제는 사용자 결정 대기.
 
 ## 2. 최근 결과
 

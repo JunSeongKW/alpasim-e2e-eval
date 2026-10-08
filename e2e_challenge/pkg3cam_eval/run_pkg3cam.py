@@ -79,6 +79,13 @@ class Model:
             "-e", "HF_HUB_OFFLINE=1",
             "-e", "TRANSFORMERS_OFFLINE=1",
             "-e", "PYTHONDONTWRITEBYTECODE=1",
+            # Per-model switches recorded in model.json. vitl512 needs
+            # XFORMERS_DISABLED=1: the image's xformers has no sm90 build of the
+            # fmha kernel its DINOv2 attention calls, and on H100 that kernel
+            # prints FATAL and returns garbage instead of raising, so the
+            # bundle's own torch fallback (MemEffAttention -> Attention) never
+            # triggers. The env var is the bundle's switch for that fallback.
+            *[arg for k, v in self.meta.get("extra_env", {}).items() for arg in ("-e", f"{k}={v}")],
         ]
 
     def owned_containers(self):
@@ -164,6 +171,10 @@ def smoke(model, gpu):
     # The policy constructor raises if the known-value MSDA check fails, so a
     # zero exit already covers it; the strict-load line is printed, not logged.
     assert "exact checkpoint load: missing=0 unexpected=0" in text, "checkpoint not strict"
+    # A kernel that prints FATAL and carries on returns garbage that can still be
+    # finite (10-08 vitl512 passed a finite-output check this way), so any
+    # FATAL line fails the smoke outright.
+    assert "FATAL" not in text, f"FATAL kernel messages in {out/'smoke.log'}"
     log("Smoke PASS: " + (out / "gpu_validation.json").read_text().replace("\n", " "))
 
 
@@ -255,6 +266,7 @@ def evaluate(model):
         "mpc": {"lat_position_weight": 1.0, "long_position_weight": 0.25, "idx_start_penalty": 3},
         "throughput_topology_user_authorized": True, "keep_rollouts": True,
         "asl_pruned_after_scoring": PRUNE_ASL,
+        "extra_env": model.meta.get("extra_env", {}),
         "git_commit": output(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
         "started_at": datetime.now(KST).isoformat(),
     }, indent=2) + "\n")
