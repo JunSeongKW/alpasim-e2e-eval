@@ -77,6 +77,7 @@ def main():
         "trajectory_shape": list(trajectory.shape),
         "trajectory_endpoint": np.asarray(trajectory).reshape(-1, 3)[-1].tolist(),
         "peak_allocated_mib": round(torch.cuda.max_memory_allocated() / 2**20),
+        "peak_reserved_mib": round(torch.cuda.max_memory_reserved() / 2**20),
     }
     Path("/report/gpu_validation.json").write_text(json.dumps(report, indent=2) + "\n")
     print("PASS:", json.dumps(report))

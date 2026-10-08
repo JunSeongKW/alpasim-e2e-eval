@@ -1,17 +1,18 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-08 11:56 KST (Claude Code)
+마지막 갱신: 2026-10-08 13:37 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **실행 중인 평가 없음 — 사용자 요청으로 대기(10-08 11:57).** GPU 0–7 반납(junhyeok 상주 ~3 GB 만 남음).
-- `stage3-vits512-6layer`: **완료** (08:37–11:06, 441/441, 인프라 오류 0). 결과 `runs/leaderboard-stage3-vits512-6layer-20261008/aggregate/results-summary.json`. 중간 37주체 적합 `runs/leaderboard-37-with-pkg3cam-20261008/` (Rank 22, PCS 2356, 0.6154, at-fault 0.9308). ASL 172 GB 보존 중.
-- `stage3-vits768-3layer`: **일시정지** (11:40 시작 → 11:57 중단, 완료 0). 재개: `.venv/bin/python e2e_challenge/pkg3cam_eval/run_pkg3cam.py --model vits768_3layer --replicas 6 --prune-asl --resume >> runs/leaderboard-stage3-vits768-3layer-20261008.progress.log 2>&1 &` (정지된 compose 컨테이너 58개는 재기동 시 재생성). 11:06 자동 시작은 디스크 검사(150 GiB) 실패로 무산됐다 → `--prune-asl`(채점된 rollout.asl 즉시 삭제, asl_pruned.tsv 기록)로 해결.
-- `stage3-vitl512-3layer-lr1`: 번들 불완전. part-aa/ab/ac(각 950 MiB)만 도착, 체크포인트 5.38 GB 중 3.20 GB(59.5%)만 존재, SHA256SUMS 없음 → 약 2조각 더 필요. 감시 pid 902108 이 완성 시 자동 해제·검증.
-- 디스크 100% (여유 ~70 GB). 과거 ASL: 6layer 172 GB, disjoint512 172 GB, 5cam 196 GB — 삭제 여부는 사용자 결정.
+- `stage3-vits768-3layer` **실행 중** (12:46 재개, launcher pid 1636345, GPU 0–7 × 6, `--prune-asl`). 13:36 기준 49/441. 진행 `runs/leaderboard-stage3-vits768-3layer-20261008/status.json`.
+- `stage3-vitl512-3layer-lr1` **대기열** (chain pid 2098197, `SMOKE_GPU=0 chain_after.sh ... vitl512_3layer_lr1 1800 --prune-asl`): 768 complete → GPU 비면 GPU0 smoke(strict+forward) → 통과 시 441 시작. 768 피크(≥73 GB)+6×1.8 GB > 79 GB 이므로 GPU당 5드라이버(40 worker) 예상. 로그 `runs/leaderboard-stage3-vitl512-3layer-lr1-20261008.progress.log`.
+- vitl 번들: 6조각(aa–af) 완성, 12:36 해제, SHA256SUMS 665 OK. prepare 완료(DINOv2 ViT-L, 512×256, feature level 4, BEV 3층, `bevformer_vit_ckpt` 비움).
+- `stage3-vits512-6layer` 완료(08:37–11:06). 37주체 중간 적합 Rank 22 / PCS 2356.
+- **디스크 100% (여유 ~42 GB)**: 쓰기 지연으로 docker 컨테이너 생성이 수십 분 멈춤(13:08~). 실행 중 평가는 영향 없음. 그래서 vitl smoke 를 지금 못 하고 768 종료 후로 미룸. 과거 ASL(6layer 172 GB, disjoint512 172 GB, 5cam 196 GB) 삭제는 사용자 결정 대기.
+- 정리: 13:08 hung `docker create` 가 남긴 Created 컨테이너 `youthful_mclean`(내 것) 제거 요청함. `admiring_chaplygin`(10-02 axe-v10 Created)과 `pjh-*` 는 건드리지 않음.
 
 ## 2. 최근 결과
 

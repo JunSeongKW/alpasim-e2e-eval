@@ -30,9 +30,16 @@ SHA="$(sha256sum "$CKPT" | cut -d' ' -f1)"
 
 rm -rf "$PREP/drivesuprim_challenge" "$PREP/assets"
 mkdir -p "$PREP/drivesuprim_challenge" "$PREP/assets"
-cid="$(docker create "$BASE_IMAGE" true)"
-docker cp "$cid:/app/drivesuprim_challenge/." "$PREP/drivesuprim_challenge/"
-docker rm "$cid" >/dev/null
+# ADAPTER_BASE_DIR: a copy of the base image's /app/drivesuprim_challenge taken
+# earlier (same digest). Used when the docker daemon is too slow to create a
+# container -- on 10-08 a near-full disk kept `docker create` hanging >10 min.
+if [[ -n "${ADAPTER_BASE_DIR:-}" ]]; then
+    cp -a "$ADAPTER_BASE_DIR/." "$PREP/drivesuprim_challenge/"
+else
+    cid="$(docker create "$BASE_IMAGE" true)"
+    docker cp "$cid:/app/drivesuprim_challenge/." "$PREP/drivesuprim_challenge/"
+    docker rm "$cid" >/dev/null
+fi
 cp "$ROOT/e2e_challenge/5cam_eval/drivesuprim_challenge/"{driver,policy,cnx_bev_bridge}.py "$PREP/drivesuprim_challenge/"
 cp "$HERE/camera_layout.py" "$PREP/drivesuprim_challenge/"
 sed -i 's/f"5-camera driver requires bev_num_cameras=/f"This driver requires bev_num_cameras=/' "$PREP/drivesuprim_challenge/policy.py"
@@ -41,10 +48,17 @@ if [[ "$PINHOLE_PROFILE" != K377_512X256 ]]; then
 fi
 rm -rf "$PREP/drivesuprim_challenge/__pycache__"
 
-docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp --entrypoint python \
-    -v "$SRC:/bundle:ro" -v "$HERE:/tools:ro" -v "$PREP/assets:/output" "$BASE_IMAGE" \
-    /tools/compose_config.py --source /bundle --agent "$AGENT" \
-    --checkpoint /app/assets/drivesuprim/pkg_stage3_best.ckpt --output /output/config.json
+# COMPOSE_ON_HOST=1 composes with the host venv's hydra instead of the image's;
+# checked to produce a byte-identical config.json for vits512_6layer.
+if [[ "${COMPOSE_ON_HOST:-0}" == 1 ]]; then
+    "$ROOT/.venv/bin/python" "$HERE/compose_config.py" --source "$SRC" --agent "$AGENT" \
+        --checkpoint /app/assets/drivesuprim/pkg_stage3_best.ckpt --output "$PREP/assets/config.json"
+else
+    docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp --entrypoint python \
+        -v "$SRC:/bundle:ro" -v "$HERE:/tools:ro" -v "$PREP/assets:/output" "$BASE_IMAGE" \
+        /tools/compose_config.py --source /bundle --agent "$AGENT" \
+        --checkpoint /app/assets/drivesuprim/pkg_stage3_best.ckpt --output /output/config.json
+fi
 
 "$ROOT/.venv/bin/python" - "$PREP" <<PY
 import json, sys, subprocess
