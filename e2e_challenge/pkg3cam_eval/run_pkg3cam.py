@@ -171,9 +171,11 @@ def check(model):
     assert model.meta["checkpoint_sha256"] == output(
         ["sha256sum", model.meta["checkpoint"]]).split()[0], "checkpoint changed"
     assert json.loads((model.prep / "smoke/gpu_validation.json").read_text())["passed"]
-    assert shutil.disk_usage(ROOT).free >= 150 * 1024**3, "need 150 GiB free for rollouts"
+    need = 40 if PRUNE_ASL else 190
+    assert shutil.disk_usage(ROOT).free >= need * 1024**3, f"need {need} GiB free for rollouts"
     assert not model.owned_containers(), "Existing containers: refusing a duplicate launch"
-    assert not (model.run / "wizard-config.yaml").exists(), "Run already deployed"
+    if not RESUME:
+        assert not (model.run / "wizard-config.yaml").exists(), "Run already deployed"
     for port in [*range(model.port, model.port + WORKERS),
                  *range(model.wizard_port, model.wizard_port + 130)]:
         with socket.socket() as sock:
@@ -202,6 +204,35 @@ def stop_owned(model):
     subprocess.run(["docker", "rm", *names], check=True)
 
 
+PRUNE_ASL = False
+# --resume: reuse the run directory; ENABLE_AUTORESUME skips rollouts with _complete.
+RESUME = False
+
+
+def prune_finished_asl(model):
+    """Delete rollout.asl of rollouts that are already scored.
+
+    The runtime evaluator writes metrics.parquet when a rollout ends and the
+    final aggregation reads only those files (eval/aggregation/main.py); the
+    ASL is needed only for video or re-evaluation. With the disk near full a
+    441 run cannot hold all ASLs (~350 MB each, ~172 GB). An ASL is removed only
+    once _complete and metrics.parquet both exist and _complete is a minute old.
+    Every removal is listed in asl_pruned.tsv.
+    """
+    freed = 0
+    now = time.time()
+    with (model.run / "asl_pruned.tsv").open("a") as stream:
+        for done in (model.run / "rollouts").glob("*/*/_complete"):
+            asl = done.parent / "rollout.asl"
+            if (asl.exists() and (done.parent / "metrics.parquet").exists()
+                    and now - done.stat().st_mtime > 60):
+                size = asl.stat().st_size
+                asl.unlink()
+                freed += size
+                stream.write(f"{datetime.now(KST).isoformat()}\t{done.parent.relative_to(model.run)}\t{size}\n")
+    return freed
+
+
 def evaluate(model):
     lock = (ROOT / f".cache/{model.run_name}.lock").open("w")
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -223,6 +254,7 @@ def evaluate(model):
         "ego_geom_from_api": True,
         "mpc": {"lat_position_weight": 1.0, "long_position_weight": 0.25, "idx_start_penalty": 3},
         "throughput_topology_user_authorized": True, "keep_rollouts": True,
+        "asl_pruned_after_scoring": PRUNE_ASL,
         "git_commit": output(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
         "started_at": datetime.now(KST).isoformat(),
     }, indent=2) + "\n")
@@ -274,6 +306,8 @@ def evaluate(model):
                 (model.run / "vram-peaks.json").write_text(json.dumps(peaks, indent=2) + "\n")
                 done = sum(1 for _ in (model.run / "rollouts").glob("**/_complete")) \
                     if (model.run / "rollouts").exists() else 0
+                if PRUNE_ASL and (model.run / "rollouts").exists():
+                    prune_finished_asl(model)
                 status(model, "simulation", completed_rollouts=done)
                 time.sleep(10)
         assert proc.returncode == 0, f"Simulation exit={proc.returncode}; see wizard log"
@@ -292,11 +326,17 @@ def main():
     parser.add_argument("--smoke", type=int, metavar="GPU")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--wait", action="store_true")
+    parser.add_argument("--resume", action="store_true",
+                        help="continue a stopped run; completed rollouts are skipped")
+    parser.add_argument("--prune-asl", action="store_true",
+                        help="delete each scored rollout.asl during the run (disk)")
     parser.add_argument("--replicas", type=int, default=6,
                         help="drivers and renderers per GPU (6 = 48 workers)")
     args = parser.parse_args()
-    global REPLICAS, WORKERS
+    global REPLICAS, WORKERS, PRUNE_ASL, RESUME
     REPLICAS, WORKERS = args.replicas, args.replicas * len(GPUS)
+    PRUNE_ASL = args.prune_asl
+    RESUME = args.resume
     os.chdir(ROOT)
     model = Model(args.model)
     if args.smoke is not None:

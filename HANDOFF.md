@@ -1,18 +1,17 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-08 08:45 KST (Claude Code)
+마지막 갱신: 2026-10-08 11:56 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **10-08 신규 3카메라 번들 3개 441 평가 (GPU 0–7, 48 worker, 순차 실행)** — 사용자 지시: 4개(실제 3개 모델, vitl 은 분할 4파일 이상) 전부 평가, GPU 0–7, 81 GB 이하, 최대한 빠르게, 모델 밖 조건은 axe-v9 과 동일.
-  1. `stage3-vits512-6layer` 실행 중 (08:37 시작, launcher pid 795216). 진행: `runs/leaderboard-stage3-vits512-6layer-20261008/status.json`, 로그 `runs/leaderboard-stage3-vits512-6layer-20261008.progress.log`.
-  2. `stage3-vits768-3layer` 대기열 (chain pid 909221): 1번 complete 후 1번 VRAM 피크로 GPU당 드라이버 6/5 결정 → GPU 4 GB 미만 확인 후 자동 시작. 로그 `runs/leaderboard-stage3-vits768-3layer-20261008.progress.log`.
-  3. `stage3-vitl512-3layer-lr1` 번들 전송 미완: part-aa/ab/ac(각 950 MiB) 도착, zstd 스트림 불완전. 감시 pid 902108 (`runs/await-vitl512-bundle.log`) 가 완성 시 압축 해제+SHA256SUMS 검증. 이후 prepare→smoke→chain 필요.
-- junhyeok 의 python 프로세스가 GPU 0–7 각 ~3 GB 상주(건드리지 않음). 81 GB 한도 계산에 포함.
-- 컨테이너 접두어 `axe-pkg3-*`. 다른 연구원 작업과 무관.
+- **실행 중인 평가 없음 — 사용자 요청으로 대기(10-08 11:57).** GPU 0–7 반납(junhyeok 상주 ~3 GB 만 남음).
+- `stage3-vits512-6layer`: **완료** (08:37–11:06, 441/441, 인프라 오류 0). 결과 `runs/leaderboard-stage3-vits512-6layer-20261008/aggregate/results-summary.json`. 중간 37주체 적합 `runs/leaderboard-37-with-pkg3cam-20261008/` (Rank 22, PCS 2356, 0.6154, at-fault 0.9308). ASL 172 GB 보존 중.
+- `stage3-vits768-3layer`: **일시정지** (11:40 시작 → 11:57 중단, 완료 0). 재개: `.venv/bin/python e2e_challenge/pkg3cam_eval/run_pkg3cam.py --model vits768_3layer --replicas 6 --prune-asl --resume >> runs/leaderboard-stage3-vits768-3layer-20261008.progress.log 2>&1 &` (정지된 compose 컨테이너 58개는 재기동 시 재생성). 11:06 자동 시작은 디스크 검사(150 GiB) 실패로 무산됐다 → `--prune-asl`(채점된 rollout.asl 즉시 삭제, asl_pruned.tsv 기록)로 해결.
+- `stage3-vitl512-3layer-lr1`: 번들 불완전. part-aa/ab/ac(각 950 MiB)만 도착, 체크포인트 5.38 GB 중 3.20 GB(59.5%)만 존재, SHA256SUMS 없음 → 약 2조각 더 필요. 감시 pid 902108 이 완성 시 자동 해제·검증.
+- 디스크 100% (여유 ~70 GB). 과거 ASL: 6layer 172 GB, disjoint512 172 GB, 5cam 196 GB — 삭제 여부는 사용자 결정.
 
 ## 2. 최근 결과
 
