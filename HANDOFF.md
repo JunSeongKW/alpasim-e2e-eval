@@ -1,21 +1,31 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-08 17:00 KST (Claude Code)
+마지막 갱신: 2026-10-08 20:36 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- `stage3-vitl512-3layer-lr1` **재실행 중** (16:54, launcher pid 2560390, GPU 0–7 × 5 = 40 worker, `--prune-asl`, `XFORMERS_DISABLED=1`).
-  - **첫 실행(16:03–16:45)은 무효**: axe-v9 이미지의 xformers 에 sm90 용 fmha 커널이 없어 DINOv2 ViT-L attention 이 `FATAL: kernel fmha_cutlassF... built for sm50` 을 매 호출 수십만 줄 출력하고 garbage 를 반환 → 후보 점수 전부 NaN, 35분간 예측 2–3회. smoke 는 출력 tensor 가 유한해서 통과했다. 원본은 `runs/leaderboard-stage3-vitl512-3layer-lr1-20261008-invalid-xformers/` 로 이동(삭제 안 함).
-  - 해결: 번들 자체의 스위치 `XFORMERS_DISABLED=1`(MemEffAttention → 표준 Attention, 수학적으로 동일) 를 model.json `extra_env` 로 vitl 드라이버에만 준다. smoke 는 이제 FATAL 한 줄이라도 있으면 실패. 재 smoke: FATAL 0, strict, BEV 99.1%.
-  - vits512_6layer / vits768 의 드라이버 로그는 FATAL 0, NaN 0, 예측 83,496 회씩 → 이 문제와 무관(ViT-S 는 이 xformers 레이어를 안 씀).
-- 완료 후: `pkg3cam_leaderboard.py vits512_6layer vits768_3layer vitl512_3layer_lr1` → 39주체 최종 적합.
-- **시나리오 분석(차종·국가) 완료**: `../scenario_analysis/analysis_result_vehicle_country/` (README.md, figures 7, tables). 팀 레포 쪽이라 커밋 안 함.
-- 디스크 여유 ~65 GB. 과거 ASL 540 GB 삭제는 사용자 결정 대기.
+- **없음.** 10-08 번들 3개 441 평가와 39주체 최종 적합 모두 완료(20:10). GPU 0–7 반납(junhyeok 상주 ~3 GB 만), `axe-pkg3-*` 컨테이너 0.
+- 디스크 여유 ~53 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기.
 
 ## 2. 최근 결과
+
+### ★ 10-08 3카메라 번들 3개 최종 (39주체 적합 `runs/leaderboard-39-with-pkg3cam-20261008/`, CSV `e2e_challenge/axe_local_eval/data/local_leaderboard_261008_pkg3cam.csv`)
+
+| 주체 | Rank | PCS | 장면점수 | at-fault 거리 | 구간 | 0점률 | 책임충돌 |
+|---|---:|---:|---:|---:|:---:|---:|---:|
+| axe-v9 | 2 | 2702 | 0.6993 | 1.2982 | 1-7 | .220 | .039 |
+| axe-v10 | 10 | 2536 | 0.7180 | 1.2563 | 5-15 | | |
+| stage3-vits768-3layer | 16 | 2447 | 0.6427 | 1.0442 | 10-22 | .277 | .070 |
+| vits512-disjoint-baseline-ep04 | 22 | 2361 | 0.6001 | 0.9763 | 15-26 | .315 | .070 |
+| stage3-vits512-6layer | 23 | 2357 | 0.6154 | 0.9308 | 16-26 | .281 | .073 |
+| stage3-vitl512-3layer-lr1 | 24 | 2346 | 0.5872 | 0.8832 | 16-26 | .324 | .102 |
+
+- 세 번들 모두 441/441·인프라 오류 0. 드라이버 로그 FATAL 0·NaN 0·예측 83,496 회씩.
+- 해상도 768 이 셋 중 최고, BEV 6층은 3층(disjoint)과 PCS 동률, ViT-L 은 책임충돌 .102 로 가장 나쁨. 셋 다 axe-v9 대비 책임충돌 1.8–2.6배가 격차의 주원인.
+- 시나리오 분석(axe-v9 × 차종·국가): `../scenario_analysis/analysis_result_vehicle_country/` (팀 레포 쪽, 커밋 안 함).
 
 ### 10-08 3카메라 번들 441 (같은 38주체 적합 `runs/leaderboard-38-with-pkg3cam-20261008/`)
 
@@ -262,11 +272,9 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- `e2e_challenge/pkg3cam_eval/` 신설: 3카메라 AXEv1.0-NuRec 번들을 이미지 빌드 없이 axe-v9 이미지(digest 85134c1e) 위에 read-only bind-mount 로 평가. 번들 navsim/nurec_pf, 체크포인트, 번들 stage-3 YAML 을 합성한 config.json, 그리고 5cam_eval 어댑터(per-session ego_geom, axe-v9 MSDA 설정)를 3카메라 layout 으로 쓴 drivesuprim_challenge.
-- 모델↔config 매핑(체크포인트 텐서 shape 로 확인): vits512_6layer→`..._stage3_nurec_bev6`(BEV encoder 6층, 1500 키), vits768_3layer→`..._stage3_nurec_img768`(768×384, raw_fisheye; 키·shape 는 axe-v9 과 동일), vitl512_3layer_lr1→`..._stage3_nurec_vitl_img512_lr1`(DINOv2 ViT-L). vocab sha 동일(68948af7). 번들 임계값 0.6/0.4 유지(5cam 때 사용자 확정 방침).
-- img768 은 학습 시 raw f-theta 에서 K=(377,377,256,128)×1.5 가상 pinhole 로 직접 렌더한다. 드라이버에 `K565P5_768X384` 프로필을 추가(add_pinhole_profile.py). 실제 usdz 프레임으로 학습 렌더러 vs 드라이버 렌더 비교: 768 에서 PSNR 87.7–89.3 dB, MAE ~1e-4, 2레벨 초과 픽셀 0, projection 상대차 ≤5e-7 (512 대조군과 동일 수준). `runs/prepare-stage3-vits768-3layer-20261008/raw_fisheye_check/`.
-- 두 vits 번들 GPU smoke 통과(strict missing=0/unexpected=0, BEV 커버 99.1%, ego_geom 반영, 유한 출력). vitl 은 `bevformer_vit_ckpt`(da_vitl16.pth) 를 비우도록 compose_config 에 반영(사전학습 가중치 로드 방지; 가중치는 stage-3 체크포인트에서 strict 로드).
-- 실행 계약: dev, 441, 1 rollout, MPC 1/0.25/3, batch1, reranker 없음, NONE bundling, rollouts 보존 — 10-07 disjoint512(48 worker) 와 동일.
+- vitl512 재실행(XFORMERS_DISABLED=1) 441 완료(16:55–20:09, GPU0–7×5, 피크 78.7 GB). FATAL 0·NaN 0. `final_fit_when_done.sh` 가 완료 즉시 39주체 적합(경고·제외 0).
+- 최종 리더보드 CSV 를 `e2e_challenge/axe_local_eval/data/local_leaderboard_261008_pkg3cam.csv` 로 보존. EXPERIMENTS.md 에 3행 추가.
+- 시나리오 분석: 차종(dim_cluster)·국가 열 추가 CSV, 열 설명 txt(한 줄씩), 5패널 그림 6장+요약. 메타데이터 없는 26.01 137클립은 USDZ 로 추정(차체 치수 정확 일치, 국가 LOO 99.6%).
 
 ## 4. 다음 단계
 
