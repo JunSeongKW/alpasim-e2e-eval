@@ -1,20 +1,30 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-08 13:37 KST (Claude Code)
+마지막 갱신: 2026-10-08 16:06 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- `stage3-vits768-3layer` **실행 중** (12:46 재개, launcher pid 1636345, GPU 0–7 × 6, `--prune-asl`). 13:36 기준 49/441. 진행 `runs/leaderboard-stage3-vits768-3layer-20261008/status.json`.
-- `stage3-vitl512-3layer-lr1` **대기열** (chain pid 2098197, `SMOKE_GPU=0 chain_after.sh ... vitl512_3layer_lr1 1800 --prune-asl`): 768 complete → GPU 비면 GPU0 smoke(strict+forward) → 통과 시 441 시작. 768 피크(≥73 GB)+6×1.8 GB > 79 GB 이므로 GPU당 5드라이버(40 worker) 예상. 로그 `runs/leaderboard-stage3-vitl512-3layer-lr1-20261008.progress.log`.
-- vitl 번들: 6조각(aa–af) 완성, 12:36 해제, SHA256SUMS 665 OK. prepare 완료(DINOv2 ViT-L, 512×256, feature level 4, BEV 3층, `bevformer_vit_ckpt` 비움).
-- `stage3-vits512-6layer` 완료(08:37–11:06). 37주체 중간 적합 Rank 22 / PCS 2356.
-- **디스크 100% (여유 ~42 GB)**: 쓰기 지연으로 docker 컨테이너 생성이 수십 분 멈춤(13:08~). 실행 중 평가는 영향 없음. 그래서 vitl smoke 를 지금 못 하고 768 종료 후로 미룸. 과거 ASL(6layer 172 GB, disjoint512 172 GB, 5cam 196 GB) 삭제는 사용자 결정 대기.
-- 정리: 13:08 hung `docker create` 가 남긴 Created 컨테이너 `youthful_mclean`(내 것) 제거 요청함. `admiring_chaplygin`(10-02 axe-v10 Created)과 `pjh-*` 는 건드리지 않음.
+- `stage3-vitl512-3layer-lr1` **실행 중** (16:03 시작, launcher pid 2362614, GPU 0–7 × **5** 드라이버 = 40 worker, `--prune-asl`). ViT-L 드라이버가 ViT-S 보다 ~2.3 GB 커서(smoke peak 3265 vs 970 MiB) 768 피크 78.3 GB 기준 6개면 81 GB 초과 → 5개(추정 피크 77.5 GB). 진행 `runs/leaderboard-stage3-vitl512-3layer-lr1-20261008/status.json`.
+- 완료 후: `pkg3cam_leaderboard.py vits512_6layer vits768_3layer vitl512_3layer_lr1` → 39주체 최종 적합.
+- 디스크 여유 ~66 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기. models/ 의 이미 해제·검증된 압축 원본(~7.4 GB)도 후보.
+- 15:57 체인 smoke 실패는 13:26 에 취소한 smoke 컨테이너가 데몬 지연 뒤 Created 로 남아 이름 충돌한 것. 내 Created 컨테이너 2개 제거 후 smoke 통과.
 
 ## 2. 최근 결과
+
+### 10-08 3카메라 번들 441 (같은 38주체 적합 `runs/leaderboard-38-with-pkg3cam-20261008/`)
+
+| 주체 | Rank | PCS | 장면점수 | at-fault 거리 | 구간 |
+|---|---:|---:|---:|---:|:---:|
+| axe-v9 | 2 | 2703 | 0.6993 | 1.2982 | 1-7 |
+| axe-v10 | 10 | 2541 | 0.7180 | 1.2563 | 5-15 |
+| stage3-vits768-3layer | 15 | 2446 | 0.6427 | 1.0442 | 10-21 |
+| vits512-disjoint-baseline-ep04 | 22 | 2360 | 0.6001 | 0.9763 | 15-25 |
+| stage3-vits512-6layer | 23 | 2359 | 0.6154 | 0.9308 | 16-25 |
+
+- 768 은 441/441·인프라 0, VRAM 피크 78.3 GB. 6layer 는 441/441·인프라 0. 둘 다 axe-v9 대비 책임 충돌이 ~1.8배(0.070–0.073 vs 0.039).
 
 ### 동일441클립의3모델최종비교 (2026-10-07 19:56)
 
