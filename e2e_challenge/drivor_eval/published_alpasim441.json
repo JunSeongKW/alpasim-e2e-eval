@@ -1,0 +1,34 @@
+{
+ "description": "AlpaSim results reported by papers on the same 441-scene NuRec split (e2e challenge nurec_curated_val). Values copied verbatim from the papers' tables; percentages as printed, km per incident converted from metres where the paper reports metres. corridor_exit_pct is the share of scenes leaving the 4 m corridor (ECO prints 'in corridor', converted as 100 - value). Not run by us.",
+ "column_mapping_check": "ECO's 'VaVAM (nonlin. MPC)' row equals the organizer reference run data/pai/vavam-nonlinear exactly (scene 11.0, at-fault 18.0, off-road 28.0, in-corridor 57.6 = 100 - 42.4 left_corridor_laterally, route progress 42.9 = progress_clipped_rel, 143 m = avg_dist_between_incidents_at_fault 0.1427 km), which fixes the mapping of paper columns to results-summary metrics.",
+ "sources": {
+  "OPTED": {
+   "citation": "Da Col, Igl, Karkus, Chitta, Ivanovic, Pavone, Schindler, Sakaridis. OPTED: On-Policy Fine-Tuning for End-to-End Driving using a Render-Free Teacher. arXiv 2609.20756 (2026-09-17), Table I",
+   "url": "https://arxiv.org/abs/2609.20756",
+   "setting": "441 held-out NuRec scenes of the public challenge split; 20 s, 10 Hz, non-reactive log replay; commands from the logged trajectory 40 m ahead; default AlpaSim MPC; +- = std over 3 evaluation runs (released checkpoints) or 3 training seeds (fine-tuned); preset / harmonizer not stated"
+  },
+  "ECO": {
+   "citation": "Zhang, Golchoubian, Gilitschenski, Ivanovic, Chitta. Guiding End-to-End Driving Models with Endpoint-Constrained Trajectory Optimization. arXiv 2609.31383 (2026-09-25), Table III (bottom)",
+   "url": "https://arxiv.org/abs/2609.31383",
+   "setting": "441-scene NuRec validation set of the AlpaSim e2e challenge, following OPTED; standard e2e_challenge metrics; nonlinear (default) or linear MPC as labelled; number of rollouts not stated"
+  }
+ },
+ "rows": [
+  {"source": "OPTED", "model": "LTFv6 (TransFuser)", "controller": "default MPC", "scene_score_pct": "26.5±0.1", "km_per_incident": "0.23±0.00", "atfault_collision_pct": "10.2±0.4", "offroad_pct": "20.7±0.0", "corridor_exit_pct": "27.6±0.2", "progress_pct": "43.7±0.0"},
+  {"source": "OPTED", "model": "LTFv6 + BC", "controller": "default MPC", "scene_score_pct": "12.8±2.1", "km_per_incident": "0.24±0.02", "atfault_collision_pct": "26.0±1.1", "offroad_pct": "21.3±2.3", "corridor_exit_pct": "22.3±1.3", "progress_pct": "50.9±1.9"},
+  {"source": "OPTED", "model": "LTFv6 + RoaD-recovery", "controller": "default MPC", "scene_score_pct": "32.9±3.2", "km_per_incident": "0.42±0.05", "atfault_collision_pct": "17.1±1.9", "offroad_pct": "14.0±1.0", "corridor_exit_pct": "10.6±2.0", "progress_pct": "55.0±4.3"},
+  {"source": "OPTED", "model": "LTFv6 + OPTED", "controller": "default MPC", "scene_score_pct": "41.8±0.4", "km_per_incident": "0.43±0.01", "atfault_collision_pct": "23.4±0.7", "offroad_pct": "11.7±1.0", "corridor_exit_pct": "18.6±0.5", "progress_pct": "73.4±0.2"},
+  {"source": "OPTED", "model": "VaVAM", "controller": "default MPC", "scene_score_pct": "3.9±0.2", "km_per_incident": "0.08±0.00", "atfault_collision_pct": "18.6±0.2", "offroad_pct": "34.1±0.5", "corridor_exit_pct": "48.6±1.0", "progress_pct": "31.2±0.2"},
+  {"source": "OPTED", "model": "VaVAM + BC", "controller": "default MPC", "scene_score_pct": "25.2±1.1", "km_per_incident": "0.18±0.02", "atfault_collision_pct": "12.8±0.8", "offroad_pct": "32.1±2.0", "corridor_exit_pct": "32.1±1.3", "progress_pct": "53.8±1.6"},
+  {"source": "OPTED", "model": "VaVAM + RoaD-recovery", "controller": "default MPC", "scene_score_pct": "30.7±4.2", "km_per_incident": "0.22±0.02", "atfault_collision_pct": "11.0±1.1", "offroad_pct": "27.9±1.1", "corridor_exit_pct": "28.6±3.6", "progress_pct": "55.6±2.2"},
+  {"source": "OPTED", "model": "VaVAM + OPTED", "controller": "default MPC", "scene_score_pct": "37.1±2.1", "km_per_incident": "0.25±0.03", "atfault_collision_pct": "13.5±0.7", "offroad_pct": "24.8±1.9", "corridor_exit_pct": "28.4±1.4", "progress_pct": "60.7±1.7"},
+  {"source": "OPTED", "model": "Qwen-Drive 1.0", "controller": "default MPC", "scene_score_pct": "25.4±0.5", "km_per_incident": "0.21±0.01", "atfault_collision_pct": "14.4±0.7", "offroad_pct": "18.3±1.1", "corridor_exit_pct": "19.0±0.7", "progress_pct": "39.1±0.2"},
+  {"source": "OPTED", "model": "Alpamayo 1.5", "controller": "default MPC", "scene_score_pct": "55.2±1.0", "km_per_incident": "0.92±0.05", "atfault_collision_pct": "4.8±0.6", "offroad_pct": "12.0±1.4", "corridor_exit_pct": "25.5±0.9", "progress_pct": "76.8±0.8"},
+  {"source": "ECO", "model": "VaVAM", "controller": "nonlinear MPC (default)", "scene_score_pct": "11.0", "km_per_incident": "0.143", "atfault_collision_pct": "18.0", "offroad_pct": "28.0", "corridor_exit_pct": "42.4", "progress_pct": "42.9", "note": "identical to the organizer reference run vavam-nonlinear"},
+  {"source": "ECO", "model": "VaVAM + ECO", "controller": "nonlinear MPC (default)", "scene_score_pct": "24.5", "km_per_incident": "0.184", "atfault_collision_pct": "15.2", "offroad_pct": "29.7", "corridor_exit_pct": "32.9", "progress_pct": "51.4"},
+  {"source": "ECO", "model": "VaVAM", "controller": "linear MPC", "scene_score_pct": "32.8", "km_per_incident": "0.353", "atfault_collision_pct": "16.8", "offroad_pct": "15.0", "corridor_exit_pct": "25.2", "progress_pct": "60.8"},
+  {"source": "ECO", "model": "VaVAM + ECO", "controller": "linear MPC", "scene_score_pct": "39.2", "km_per_incident": "0.390", "atfault_collision_pct": "12.9", "offroad_pct": "16.8", "corridor_exit_pct": "20.2", "progress_pct": "63.1"},
+  {"source": "ECO", "model": "DiffusionDrive", "controller": "nonlinear MPC (default)", "scene_score_pct": "28.9", "km_per_incident": "0.190", "atfault_collision_pct": "9.3", "offroad_pct": "22.2", "corridor_exit_pct": "22.2", "progress_pct": "40.6"},
+  {"source": "ECO", "model": "DiffusionDrive + ECO", "controller": "nonlinear MPC (default)", "scene_score_pct": "35.2", "km_per_incident": "0.296", "atfault_collision_pct": "5.5", "offroad_pct": "17.1", "corridor_exit_pct": "18.3", "progress_pct": "43.5"}
+ ]
+}

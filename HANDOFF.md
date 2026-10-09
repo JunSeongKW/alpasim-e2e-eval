@@ -293,11 +293,11 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- `run_drivor441.py` 에 일시정지·재개: `--pause`(완료 롤아웃 보존, 이 실행의 드라이버·컨테이너만 정리, status 에 재개 명령 기록), `--dry-run`(재개 시 남은 양),
-  `--resume` 은 체크포인트·어댑터 해시·정밀도·가속도 경계·프로토콜이 첫 실행과 같을 때만 시작하고 `evaluation_provenance.resume-*.json` 을 남긴다(번들은 이름으로 비교해 다른 서버 경로 허용).
-  provenance 에 host·GPU 이름 추가. 드라이버 stdout 은 이어쓰기. `--share-gpus` 는 시험용.
-- 시험(`runs/drivor-drivor-original-smoke2-pausetest`, GPU 7 공유): 1/2 완료 시점에 pause → 2분 만에 정리, 본 평가 컨테이너 60개 무영향 → resume 이 남은 1개만 실행("Built 1 jobs").
-- `drivor_eval/README.md` 에 일시정지·재개·다른 서버 이전 절차와 용량표.
+- 같은 441 장면을 쓴 논문 2편의 AlpaSim 수치를 `drivor_eval/published_alpasim441.json` 에 원문 그대로 정리: OPTED(arXiv 2609.20756, Table I), ECO(arXiv 2609.31383, Table III).
+  ECO 의 VaVAM(비선형) 행이 공식 기준 vavam-nonlinear 와 모든 지표가 일치해 열 대응(collision_at_fault, offroad, left_corridor_laterally, progress_clipped_rel, avg_dist_between_incidents_at_fault)을 확정.
+- `combined_table.py`: 우리 2개 + 공식 기준(Alpamayo 1, VaVAM 2종) + 논문 보고값을 한 표(CSV/MD)로, "직접 실행 아님·조건이 완전히 같지 않을 수 있음" 주석(한/영) 포함.
+- `finalize_after_eval.sh 20261009` 를 nohup 대기 중(`runs/drivor-finalize-20261009.progress.log`): 두 실행 complete → fit_drivor.py → combined_table.py → `runs/drivor-combined-alpasim441-20261009/`.
+- 일시정지·재개 시험 끝까지 성공: pausetest 실행이 pause 전 1개 + resume 후 1개로 2/2 집계(000525f6 0.893, 0026708c 0).
 
 ## 4. 다음 단계
 
