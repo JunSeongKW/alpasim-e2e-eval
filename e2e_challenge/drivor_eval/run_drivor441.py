@@ -43,17 +43,19 @@ ENV_PY = Path("/home/kaist5/miniconda3/envs/kjs-DrivoR-alpasim441/bin/python")
 KST = ZoneInfo("Asia/Seoul")
 MODELS = {"drivor_original": 0, "ours_hugsim_final": 1}
 # Frozen adapter settings, identical for both models (see drivor_driver.py).
-# FP32 rather than the bundle's historical FP16 autocast: in FP16 the scorer's
-# sigmoid underflows to 0 once every candidate's collision logit is below
-# about -16.6, all scores become -inf and the policy (correctly) refuses to
-# choose -- seen at the simulator's first step, whose acceleration carries an
-# initialisation spike (-21.6 m/s^2). FP32 has the same weights and inputs and
-# picks trajectories 0.01-0.02 m apart at the median (replay of 5 rollouts,
-# runs/drivor-conformance-20261009). Ego inputs stay as the simulator reports
-# them: clamping to NAVSIM's range touched 28% of steps and moved the 4 s point
-# by up to 10-13 m at p95.
+# Ego acceleration is bounded at +-10 m/s^2 (~1 g, "physical"): the simulator's
+# first states carry finite-difference spikes (-21.6 .. -761 m/s^2 in 16 of 44
+# rollouts) that push every candidate's collision logit to -37 .. -147, below
+# what sigmoid can represent, so all scores are -inf and the policy refuses to
+# choose (clipgt-032b6f21 failed this way even in FP32). After those states MPC
+# stays within |ax| <= 9.0, so the bound never touches normal driving. NAVSIM's
+# narrower range (-5.2 .. 3.4) is not used: it changed 28% of steps.
+# FP32 rather than the bundle's historical FP16 autocast keeps the sigmoid
+# headroom at about -104 instead of -16.6 for the rest of the run; same weights
+# and inputs, trajectories 0.01 m apart at the median (5-rollout replay,
+# runs/drivor-conformance-20261009).
 PRECISION = "fp32"
-EGO_CLAMP = "none"
+EGO_CLAMP = "physical"
 
 
 def log(message):
@@ -287,8 +289,9 @@ class Run:
             receipt = self.receipts()
             (self.dir / "driver_receipts.json").write_text(json.dumps(receipt, indent=2) + "\n")
             log(f"driver receipts: {receipt}")
-            assert receipt.get("errors", 0) == 0, "driver errors during the run"
-            self.status("complete", receipts=receipt)
+            # fit_drivor.py refuses runs with driver errors; record, do not discard.
+            self.status("complete" if receipt.get("errors", 0) == 0 else "complete_with_driver_errors",
+                        receipts=receipt)
             log(f"Complete: {self.dir / 'aggregate/results-summary.json'}")
         except Exception as exc:
             self.status("failed", error=str(exc))

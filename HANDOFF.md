@@ -7,7 +7,8 @@
 
 ## 1. 실행 중인 작업
 
-- **없음.** DrivoR 라이브 스모크 2건 완료 후 드라이버·컨테이너 모두 정리(`kjs-DrivoR-*` 프로세스 0, `drivor-*` 컨테이너 0).
+- **DrivoR 441×3 본 평가 2건 (GPU 0–7, 사용자 승인 2026-10-09 15:05 "8장 전부, VRAM 최대")**: `runs/drivor-ours-hugsim-final-441x3-20261009`(GPU 0–3, 24 worker), `runs/drivor-drivor-original-441x3-20261009`(GPU 4–7, 24 worker). 진행 `runs/<run>/status.json`, 로그 `runs/<run>.progress.log`. GPU 당 렌더러 6 + 드라이버 6 (이전 48-worker 피크 78 GB, 7 은 OOM 위험).
+  중단 이력: 15:07 GPU 4–7 판(완료 0) → 8 GPU 로 재시작, 15:30 ego 가속도 스파이크로 drive 실패(clipgt-032b6f21, FP32 에서도) → ±10 m/s² 경계 추가 후 재시작. 중단 폴더는 `runs/.trash-drivor-aborted-*-20261009/`(완료 롤아웃 1개, 평가 끝난 뒤 삭제 가능).
 - 디스크 여유 ~325 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기
   (5cam ASL 은 DrivoR 어댑터 오프라인 검증 입력으로 쓰고 있으니 지운다면 마지막에).
 
@@ -22,6 +23,8 @@
 - 리플레이 적합성(ASL 5개 × 6구성, 구성당 ~1,000 drive, `runs/drivor-conformance-20261009/matrix_summary.txt`):
   FP16·입력 그대로 → 모델당 1회 `Nonfinite scores`(시뮬 첫 스텝 가속도 −21.6 m/s² 에서 64후보 충돌 logit ≈ −36 → FP16 sigmoid underflow → 전부 −∞).
   FP32 는 오류 0, FP16 대비 4 s 지점 차 중앙값 0.01 m(p95 0.8/1.4 m). NAVSIM 범위 clamp 는 오류 0 이지만 28% 스텝을 바꾸고 4 s 지점 p95 9–13 m 이동.
+  본 평가 첫 판에서 FP32 도 실패(clipgt-032b6f21 첫 상태 가속도 −57.6, 직전 +68.8 → 충돌 logit −147). 롤아웃 44개 중 16개가 처음 몇 상태에 |a|>10(최대 −761), 그 뒤 |ax| ≤ 9.0
+  (`runs/drivor-conformance-20261009/start_spikes_44rollouts.jsonl`) → 가속도만 ±10 m/s² 경계(`--ego-clamp physical`). 두 실패 입력 모두 FP16/FP32·두 모델에서 유한, 충돌 logit −3.9/+2.6 으로 정상화.
 - 명령 규칙 보정(NAVSIM trainval 20.7만 프레임, `command_calibration.json`): 공식 3 m/20 m(실효 40 m) 균형정확도 .884, 가능 최선 .889.
 - 후방 B0: 회전만 접합하면 바로 뒤 추종차가 반투명/소실 → 지면+15 m 원통 프록시 접합 채택(`runs/drivor-conformance-20261009/rear_b0_stitch_compare.png`).
 
@@ -300,17 +303,16 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 4. 다음 단계
 
-- DrivoR 본 평가: 사용자 결정(5절) 후 `run_drivor441.py --model <m> --gpus ... --replicas 6 --prune-asl` 를 두 모델 차례로(또는 GPU 를 나눠 동시에) → `fit_drivor.py`.
-  441×3 = 모델당 1,323 롤아웃. GPU 4–7(24 worker) 이면 모델당 ~9–11 h 추정, 0–7(48 worker) 이면 절반.
+- DrivoR 본 평가 진행 중(1절). 끝나면 `driver_receipts.json` 의 errors=0 확인 → 인프라 실패 클립 있으면 재시도 → `fit_drivor.py --original runs/drivor-drivor-original-441x3-20261009 --ours runs/drivor-ours-hugsim-final-441x3-20261009`.
 - 이전 항목(완료된 10-08 번들 흐름, 참고용):
 - 6layer 완료 → 768 자동 시작 확인. vitl 번들 완성 시 `MODEL=vitl512_3layer_lr1 e2e_challenge/pkg3cam_eval/prepare.sh` → `run_pkg3cam.py --model vitl512_3layer_lr1 --smoke <gpu>` (smoke 의 peak 로 드라이버 메모리 확인) → `chain_after.sh leaderboard-stage3-vits768-3layer-20261008 vitl512_3layer_lr1 <extra MiB>`.
 - 인프라(RPC) 실패 클립이 있으면 10-07 infra-retry 방식으로 재시도 후, `pkg3cam_leaderboard.py <완료 모델들>` 로 36+N 공동 적합 → 사용자 형식 CSV.
 
 ## 5. 미결 질문 (사용자 결정 필요)
 
-- **DrivoR 평가(2026-10-09)**: (1) 정밀도 — FP32·입력 그대로(추천, 현재 런처 기본값) vs 번들 기본 FP16 + NAVSIM clamp.
+- **DrivoR 평가(2026-10-09)**: 기본값으로 진행 중이며 사용자/mingyu 확인 필요: (1) 정밀도 FP32 + 가속도 ±10 m/s² 경계(번들 기본 FP16 아님).
   (2) 후방 — 프록시 접합(추천, mingyu 메모 우선순위 1) vs 3경로 attention mask(우선순위 2, 모델 코드 수정·테스트 필요).
-  (3) GPU 0–3 사용 허락 여부와 441×3(추천, 기준과 동일) vs 441×1. (4) mingyu 에게 FP32 전환 공유 필요.
+  (3) 441×3(기준과 동일)으로 진행. GPU 0–7 은 승인됨. (4) mingyu 에게 FP32·가속도 경계 공유 필요.
   참고: 이 평가는 axe 계약(16/16/16, MPC 1/0.25/3)이 아니라 번들 프로토콜(기본 MPC, 441×3)을 따른다.
 
 - 이번441최종집계/36리더보드보고에미결없음. 2인프라클립복구완료이며실제모델실패0점은유지했다. 기존axe-v9의역사적RPC1은그대로보존하고미상충돌지표를명시한다.

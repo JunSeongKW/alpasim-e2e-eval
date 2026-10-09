@@ -17,8 +17,8 @@
 | 카메라 | PAI f-theta → nuPlan 1920×1080 왜곡 핀홀. F0←front_wide, L0←cross_left, R0←cross_right 는 회전만 재투영, B0←rear_left+rear_right 는 지면+15 m 원통 프록시 접합. 아무 카메라도 못 보는 화소는 가장 가까운 가장자리로 채움 | 공식 VaVAM rectifier 와 같은 방식. 회전만으로 B0 를 접합하면 바로 뒤 차량이 이음매에서 사라지거나 반투명해진다(카메라 좌우 간격 1 m > 차폭 절반) |
 | nuPlan 기준 자세 | `nuplan_rig.json` (NAVSIM trainval 1,310 로그 중앙값, 내부 파라미터는 97.8% 를 차지하는 기본값) | `extract_nuplan_rig.py` |
 | 명령 | 공식 `determine_command_from_route`, 임계 3 m / lookahead 20 m (VaVAM·Alpamayo 공식 설정). dev 프리셋 경로는 40 m 앞부터 시작 | `calibrate_command.py`: NAVSIM 명령과 균형정확도 0.884, 최선 0.889 와 0.005 차 |
-| ego | NAVSIM ego_status 4행(2 Hz), 속도·가속도는 DynamicState 그대로 | NAVSIM 범위로 자르면 28% 스텝이 바뀌고 4 s 지점이 p95 9–13 m 이동 |
-| 정밀도 | **FP32** (번들 기본 FP16 autocast 아님) | FP16 에선 모든 후보 충돌 logit < −16.6 이면 sigmoid 가 0 으로 underflow → 점수 전부 −∞ → 정책이 의도적으로 중단. 시뮬 첫 스텝 가속도 스파이크(−21.6 m/s²)에서 발생. FP32 와 FP16 의 선택 궤적 차이는 4 s 지점 중앙값 0.01 m |
+| ego | NAVSIM ego_status 4행(2 Hz), 속도는 DynamicState 그대로, **가속도만 ±10 m/s²(≈1 g) 경계** | 시뮬 첫 몇 상태에 유한차분 스파이크(롤아웃 44개 중 16개, 최대 −761 m/s²) → 모든 후보 충돌 logit −37~−147 → FP32 에서도 점수 전부 −∞ 로 정책 중단(clipgt-032b6f21). 그 뒤 MPC 는 \|ax\| ≤ 9.0 이라 정상 주행은 건드리지 않음. NAVSIM 범위(−5.2~3.4)로 자르면 28% 스텝이 바뀌어 기각 |
+| 정밀도 | **FP32** (번들 기본 FP16 autocast 아님) | FP16 은 sigmoid 가 logit −16.6 아래에서 0 으로 underflow(FP32 는 ≈−104). 같은 가중치·입력에서 FP16 과 선택 궤적 차이는 4 s 지점 중앙값 0.01 m |
 | 출력 | 선택 궤적 8점(0.5–4.0 s) + 현재 자세, 보간·평활·외삽 없음. 실패는 gRPC 오류(대체 궤적 없음) | 공식 드라이버 변환과 동일 |
 
 ## 실행

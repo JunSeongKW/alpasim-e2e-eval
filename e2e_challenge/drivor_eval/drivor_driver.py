@@ -23,6 +23,10 @@ What this adapter adds, identically for both policies (frozen before any score):
   ego       NAVSIM ego_status rows (pose relative to now, velocity and
             acceleration in the rear-axle frame from DynamicState, command
             one-hot [left, straight, right, unknown]), 4 rows at 2 Hz.
+            --ego-clamp physical bounds acceleration to +-10 m/s^2 (~1 g): the
+            simulator's first states carry finite-difference spikes (up to
+            -761 m/s^2 in 16 of 44 rollouts) that drive every collision logit
+            below the float range of sigmoid; after them MPC never exceeds 9.
   output    the selected 8 x (x, y, heading) at 0.5 .. 4.0 s, anchored on the
             latest egomotion pose and stamped time_now + k * 0.5 s, the current
             pose prepended -- as alpasim_driver.main converts predictions. No
@@ -63,6 +67,10 @@ OUTPUT_DT_US = 500_000
 # simulator's first step carries an initialisation spike (e.g. -21.6 m/s^2) and
 # MPC braking reaches -9 m/s^2, outside NAVSIM's -5.2 .. 3.4.
 NAVSIM_RANGE = {"vx": (-2.03, 19.56), "vy": (-0.48, 0.41), "ax": (-5.15, 3.41), "ay": (-4.16, 5.57)}
+# --ego-clamp physical: only accelerations, at a passenger car's ~1 g. Across 44
+# simulated rollouts the first few states reach -761 / +468 m/s^2 (initial
+# finite differences of the recorded log), after them |ax| <= 9.0.
+PHYSICAL_ACC_MS2 = 10.0
 
 
 def setup_paths(kit: Path) -> None:
@@ -298,12 +306,15 @@ class DrivorDriver:
             rel = np.array([c * dx + si * dy, -si * dx + c * dy,
                             math.atan2(math.sin(yaw_of(p.quat) - cyaw), math.cos(yaw_of(p.quat) - cyaw))])
             vx, vy, ax, ay = s.dynamic[t]
+            raw = (vx, vy, ax, ay)
             if self.args.ego_clamp == "navsim":
-                raw = (vx, vy, ax, ay)
                 vx, vy, ax, ay = (min(max(val, NAVSIM_RANGE[k][0]), NAVSIM_RANGE[k][1])
                                   for k, val in zip(("vx", "vy", "ax", "ay"), raw))
-                if back == 0 and (vx, vy, ax, ay) != raw:
-                    s.counts["ego_clamped"] += 1
+            elif self.args.ego_clamp == "physical":
+                ax = min(max(ax, -PHYSICAL_ACC_MS2), PHYSICAL_ACC_MS2)
+                ay = min(max(ay, -PHYSICAL_ACC_MS2), PHYSICAL_ACC_MS2)
+            if back == 0 and (vx, vy, ax, ay) != raw:
+                s.counts["ego_clamped"] += 1
             rows.append(SimpleNamespace(ego_pose=rel.astype(np.float32),
                                         ego_velocity=np.array([vx, vy], dtype=np.float32),
                                         ego_acceleration=np.array([ax, ay], dtype=np.float32),
@@ -345,7 +356,7 @@ def main():
     ap.add_argument("--kit", default=str(KIT_DEFAULT))
     ap.add_argument("--log-dir", required=True)
     ap.add_argument("--threads", type=int, default=4)
-    ap.add_argument("--ego-clamp", default="none", choices=["none", "navsim"])
+    ap.add_argument("--ego-clamp", default="physical", choices=["none", "physical", "navsim"])
     args = ap.parse_args()
     setup_paths(Path(args.kit))
     Path(args.log_dir).mkdir(parents=True, exist_ok=True)
