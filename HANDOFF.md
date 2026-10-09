@@ -296,6 +296,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 - 같은 441 장면을 쓴 논문 2편의 AlpaSim 수치를 `drivor_eval/published_alpasim441.json` 에 원문 그대로 정리: OPTED(arXiv 2609.20756, Table I), ECO(arXiv 2609.31383, Table III).
   ECO 의 VaVAM(비선형) 행이 공식 기준 vavam-nonlinear 와 모든 지표가 일치해 열 대응(collision_at_fault, offroad, left_corridor_laterally, progress_clipped_rel, avg_dist_between_incidents_at_fault)을 확정.
 - `combined_table.py`: 우리 2개 + 공식 기준(Alpamayo 1, VaVAM 2종) + 논문 보고값을 한 표(CSV/MD)로, "직접 실행 아님·조건이 완전히 같지 않을 수 있음" 주석(한/영) 포함.
+- 통합 표에 '학습 도메인'·'참고 사항' 열(행별 학습 데이터 공개 여부, 연결 방식 차이, 미기재 조건). Alpamayo 는 'PAI-AV·NuRec 학습 포함 여부 미공개'로 표기.
 - `finalize_after_eval.sh 20261009` 를 nohup 대기 중(`runs/drivor-finalize-20261009.progress.log`): 두 실행 complete → fit_drivor.py → combined_table.py → `runs/drivor-combined-alpasim441-20261009/`.
 - 일시정지·재개 시험 끝까지 성공: pausetest 실행이 pause 전 1개 + resume 후 1개로 2/2 집계(000525f6 0.893, 0026708c 0).
 

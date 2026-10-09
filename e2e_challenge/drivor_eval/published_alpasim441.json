@@ -24,7 +24,8 @@
    "offroad_pct": "20.7±0.0",
    "corridor_exit_pct": "27.6±0.2",
    "progress_pct": "43.7±0.0",
-   "train_domain": "제로샷 (nuPlan·CARLA 학습)"
+   "train_domain": "제로샷 (nuPlan·CARLA 학습)",
+   "note": "공개 체크포인트(nuPlan·CARLA 학습, 카메라 + 속도·가속도 입력). 평가 3회 평균±표준편차. 평가 설정 중 렌더러(harmonizer)·초기 강제 GT 구간 드라이버 호출 여부 미기재"
   },
   {
    "source": "OPTED",
@@ -36,7 +37,8 @@
    "offroad_pct": "21.3±2.3",
    "corridor_exit_pct": "22.3±1.3",
    "progress_pct": "50.9±1.9",
-   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)"
+   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)",
+   "note": "AlpaSim에서 다시 렌더링한 기록 상태로 개루프 미세조정(NuRec 학습 장면 1,669개, 디코더만 2 epoch). 학습 seed 3개 평균±표준편차"
   },
   {
    "source": "OPTED",
@@ -48,7 +50,8 @@
    "offroad_pct": "14.0±1.0",
    "corridor_exit_pct": "10.6±2.0",
    "progress_pct": "55.0±4.3",
-   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)"
+   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)",
+   "note": "폐루프 미세조정(OPTED 저자의 RoaD recovery 모드 재구현, NuRec 1,669 장면, 2 epoch). 학습 seed 3개"
   },
   {
    "source": "OPTED",
@@ -60,7 +63,8 @@
    "offroad_pct": "11.7±1.0",
    "corridor_exit_pct": "18.6±0.5",
    "progress_pct": "73.4±0.2",
-   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)"
+   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)",
+   "note": "폐루프 미세조정(벡터 시뮬레이터 RL 교사의 지도, NuRec 1,669 장면, 2 epoch). 학습 seed 3개. 공식 리더보드(비공개 장면)에서는 25.1→32.2"
   },
   {
    "source": "OPTED",
@@ -72,7 +76,8 @@
    "offroad_pct": "34.1±0.5",
    "corridor_exit_pct": "48.6±1.0",
    "progress_pct": "31.2±0.2",
-   "train_domain": "제로샷 (OpenDV·nuPlan·nuScenes 학습)"
+   "train_domain": "제로샷 (OpenDV·nuPlan·nuScenes 학습)",
+   "note": "전방 카메라 1대, OPTED 자체 연결(10 Hz 재계획, 고정 노이즈로 결정적 추론). 같은 VaVAM의 공식 기준 실행·ECO 값(11.0%)과 크게 다름. 평가 3회"
   },
   {
    "source": "OPTED",
@@ -84,7 +89,8 @@
    "offroad_pct": "32.1±2.0",
    "corridor_exit_pct": "32.1±1.3",
    "progress_pct": "53.8±1.6",
-   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)"
+   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)",
+   "note": "개루프 미세조정(NuRec 1,669 장면, 디코더만 2 epoch). 학습 seed 3개"
   },
   {
    "source": "OPTED",
@@ -96,7 +102,8 @@
    "offroad_pct": "27.9±1.1",
    "corridor_exit_pct": "28.6±3.6",
    "progress_pct": "55.6±2.2",
-   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)"
+   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)",
+   "note": "폐루프 미세조정(RoaD recovery 모드 재구현, NuRec 1,669 장면). 학습 seed 3개"
   },
   {
    "source": "OPTED",
@@ -108,7 +115,8 @@
    "offroad_pct": "24.8±1.9",
    "corridor_exit_pct": "28.4±1.4",
    "progress_pct": "60.7±1.7",
-   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)"
+   "train_domain": "AlpaSim 미세조정 (NuRec 1,669 장면, 평가 441과 분리)",
+   "note": "폐루프 미세조정(NuRec 1,669 장면, 2 epoch). 학습 seed 3개. 마찰원 제약 MPC를 쓰면 50.6. 공식 리더보드에서는 6.7→35.8"
   },
   {
    "source": "OPTED",
@@ -120,7 +128,8 @@
    "offroad_pct": "18.3±1.1",
    "corridor_exit_pct": "19.0±0.7",
    "progress_pct": "39.1±0.2",
-   "train_domain": "PAI-AV 데이터 일부 학습 (RL 단계 15K 장면)"
+   "train_domain": "PAI-AV 데이터 일부 학습 (RL 단계 15K 장면)",
+   "note": "RL 단계에 PAI-AV 1.5만 장면 포함(평가 클립과의 중복 여부 미기재). 추론 1181 ms로 실시간(100 ms) 불가. 평가 3회"
   },
   {
    "source": "OPTED",
@@ -132,7 +141,8 @@
    "offroad_pct": "12.0±1.4",
    "corridor_exit_pct": "25.5±0.9",
    "progress_pct": "76.8±0.8",
-   "train_domain": "같은 차량 플랫폼 내부 데이터로 사전학습 (8만 h, PAI-AV·NuRec 포함 여부 미공개)"
+   "train_domain": "같은 차량 플랫폼 내부 데이터로 사전학습 (8만 h, PAI-AV·NuRec 포함 여부 미공개)",
+   "note": "같은 차량 플랫폼 내부 데이터 8만 h로 학습, 공개 PAI-AV·NuRec 클립의 학습 포함 여부 미공개(HF 메타데이터엔 데이터셋으로 기재, 본문에선 평가용). 추론 940 ms. 마찰원 제약 MPC 시 56.0. 평가 3회"
   },
   {
    "source": "ECO",
@@ -144,7 +154,7 @@
    "offroad_pct": "28.0",
    "corridor_exit_pct": "42.4",
    "progress_pct": "42.9",
-   "note": "identical to the organizer reference run vavam-nonlinear",
+   "note": "공식 기준 실행 vavam-nonlinear와 모든 지표가 일치(같은 실행으로 보임). 장면당 롤아웃 수·렌더러 설정 미기재",
    "train_domain": "제로샷 (OpenDV·nuPlan·nuScenes 학습)"
   },
   {
@@ -157,7 +167,8 @@
    "offroad_pct": "29.7",
    "corridor_exit_pct": "32.9",
    "progress_pct": "51.4",
-   "train_domain": "제로샷 + 학습 없는 후처리 (ECO 가중치는 HUGSIM에서 선택)"
+   "train_domain": "제로샷 + 학습 없는 후처리 (ECO 가중치는 HUGSIM에서 선택)",
+   "note": "ECO는 학습 없는 궤적 후처리(끝점 고정 최적화), 가중치는 HUGSIM 학습 분할 일부에서 선택. 장면당 롤아웃 수·렌더러 설정 미기재"
   },
   {
    "source": "ECO",
@@ -169,7 +180,8 @@
    "offroad_pct": "15.0",
    "corridor_exit_pct": "25.2",
    "progress_pct": "60.8",
-   "train_domain": "제로샷 (OpenDV·nuPlan·nuScenes 학습)"
+   "train_domain": "제로샷 (OpenDV·nuPlan·nuScenes 학습)",
+   "note": "선형 MPC는 실제 대회에 없는 옵션. 공식 기준 실행 vavam-linear(31.4%)와 값이 달라 별도 실행으로 보임. 장면당 롤아웃 수·렌더러 설정 미기재"
   },
   {
    "source": "ECO",
@@ -181,7 +193,8 @@
    "offroad_pct": "16.8",
    "corridor_exit_pct": "20.2",
    "progress_pct": "63.1",
-   "train_domain": "제로샷 + 학습 없는 후처리 (ECO 가중치는 HUGSIM에서 선택)"
+   "train_domain": "제로샷 + 학습 없는 후처리 (ECO 가중치는 HUGSIM에서 선택)",
+   "note": "선형 MPC(대회에 없음) + 학습 없는 후처리. 장면당 롤아웃 수·렌더러 설정 미기재"
   },
   {
    "source": "ECO",
@@ -193,7 +206,8 @@
    "offroad_pct": "22.2",
    "corridor_exit_pct": "22.2",
    "progress_pct": "40.6",
-   "train_domain": "제로샷 (NAVSIM 학습, 체크포인트 미기재)"
+   "train_domain": "제로샷 (NAVSIM 학습, 체크포인트 미기재)",
+   "note": "사용한 체크포인트 미기재(NAVSIM 학습 공개 모델로 추정). 장면당 롤아웃 수·렌더러 설정 미기재"
   },
   {
    "source": "ECO",
@@ -205,7 +219,8 @@
    "offroad_pct": "17.1",
    "corridor_exit_pct": "18.3",
    "progress_pct": "43.5",
-   "train_domain": "제로샷 + 학습 없는 후처리 (ECO 가중치는 HUGSIM에서 선택)"
+   "train_domain": "제로샷 + 학습 없는 후처리 (ECO 가중치는 HUGSIM에서 선택)",
+   "note": "학습 없는 후처리, 가중치는 HUGSIM에서 선택. 체크포인트 미기재. 장면당 롤아웃 수·렌더러 설정 미기재"
   }
  ],
  "training_domain_sources": {

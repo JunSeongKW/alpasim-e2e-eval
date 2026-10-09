@@ -62,10 +62,20 @@ NOTE_EN = (
     "PAI-AV, and the BC / RoaD-recovery / OPTED rows are fine-tuned inside AlpaSim on NuRec training scenes disjoint "
     "from the 441 evaluation scenes."
 )
+OUR_NOTES = {
+    "ours_hugsim_final": ("NAVSIM navtrain만으로 학습(PAI·NuRec·AlpaSim 데이터 없음). 선택 가중치·채점기는 HUGSIM 345 장면 점수로 선택. "
+                          "PAI 카메라 6대→nuPlan 4뷰 어댑터(후방은 두 카메라 프록시 접합), FP32 추론, ego 가속도 ±10 m/s² 경계(시뮬 시작 스파이크 대응). "
+                          "441 장면으로 아무것도 조정하지 않음"),
+    "drivor_original": ("공개 DrivoR V1 체크포인트(NAVSIM v1 navtrain 25 epoch). Ours와 같은 어댑터·정밀도·가속도 경계로 같은 시점에 평가"),
+    "alpamayo1": ("대회 주최 측 기준 실행(우리 PCS의 2000 기준점). 레포의 Alpamayo 1 드라이버, 카메라 4대(좌·우 cross, 전방 광각·망원)×4프레임. "
+                  "같은 차량 플랫폼 내부 데이터 8만 h로 학습, 공개 PAI-AV·NuRec 클립의 학습 포함 여부 미공개"),
+    "vavam-nonlinear": "대회 주최 측 기준 실행. 레포의 VaVAM 드라이버(전방 광각 1대를 nuPlan 핀홀로 정류). ECO 논문의 VaVAM(비선형) 값과 동일",
+    "vavam-linear": "대회 주최 측 기준 실행. 선형 MPC는 실제 대회에 없는 옵션(공식 README 명시)",
+}
 COLUMNS = ["group", "model", "train_domain", "controller", "rollouts_per_scene", "scene_score_pct", "km_per_incident",
-           "atfault_collision_pct", "offroad_pct", "corridor_exit_pct", "progress_pct", "pcs", "source"]
+           "atfault_collision_pct", "offroad_pct", "corridor_exit_pct", "progress_pct", "pcs", "source", "note"]
 HEADER_KO = ["구분", "모델", "학습 도메인", "제어기", "롤아웃/장면", "장면 점수(%)↑", "책임 사고당 km↑", "책임 충돌(%)↓",
-             "도로 이탈(%)↓", "4 m 이탈(%)↓", "진행률(%)↑", "PCS↑ (순위 구간)", "출처"]
+             "도로 이탈(%)↓", "4 m 이탈(%)↓", "진행률(%)↑", "PCS↑ (순위 구간)", "출처", "참고 사항"]
 
 
 def summary_path(p: Path) -> Path:
@@ -124,7 +134,7 @@ def main():
                   else "제로샷 (NAVSIM navtrain 학습)")
         rows.append({"group": "직접 평가 (우리)", "model": name, "train_domain": domain, "controller": "기본 비선형 MPC",
                      **measured(summary_path(run)), "pcs": pcs.get(key, ""),
-                     "source": f"runs/{run.name if run.is_dir() else run.stem}"})
+                     "source": f"runs/{run.name if run.is_dir() else run.stem}", "note": OUR_NOTES[key]})
     for key, name, ctrl in (("alpamayo1", "Alpamayo 1 (R1 10B)", "기본 비선형 MPC"),
                             ("vavam-nonlinear", "VaVAM", "기본 비선형 MPC"),
                             ("vavam-linear", "VaVAM", "선형 MPC")):
@@ -132,7 +142,7 @@ def main():
                   else "제로샷 (OpenDV·nuPlan·nuScenes 학습)")
         rows.append({"group": "공식 기준 실행", "model": name, "train_domain": domain, "controller": ctrl,
                      **measured(REF / key / "aggregate/results-summary.json"), "pcs": pcs.get(key, ""),
-                     "source": f"AlpaSim local_evaluation reference `{key}`"})
+                     "source": f"AlpaSim local_evaluation reference `{key}`", "note": OUR_NOTES[key]})
     published = json.loads((HERE / "published_alpasim441.json").read_text())
     ctrl_ko = {"default MPC": "기본 MPC", "nonlinear MPC (default)": "기본 비선형 MPC", "linear MPC": "선형 MPC"}
     for r in published["rows"]:
@@ -141,7 +151,8 @@ def main():
                      **{k: r[k] for k in ("scene_score_pct", "km_per_incident", "atfault_collision_pct",
                                           "offroad_pct", "corridor_exit_pct", "progress_pct")},
                      "pcs": "",
-                     "source": f"{r['source']} (arXiv {published['sources'][r['source']]['url'].rsplit('/', 1)[-1]})"})
+                     "source": f"{r['source']} (arXiv {published['sources'][r['source']]['url'].rsplit('/', 1)[-1]})",
+                     "note": r["note"]})
     a.out.mkdir(parents=True, exist_ok=True)
     with (a.out / "combined_alpasim441.csv").open("w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
