@@ -293,13 +293,11 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 새 폴더 `e2e_challenge/drivor_eval/` — mingyu DrivoR 번들(`../mingyu/DRIVOR_ALPASIM_NUREC441_HANDOFF_20261008_2005`)용 PAI 드라이버와 441 실행기.
-  `drivor_driver.py`(py3.9 gRPC 서비스, 공식 proto 그대로 import, 번들 `build_model_inputs`/`load_policy` 사용),
-  `pai_views.py`(PAI f-theta → nuPlan 4뷰), `nuplan_rig.json`(+`extract_nuplan_rig.py`), `calibrate_command.py`,
-  `replay_asl.py`(ASL 재생 적합성 검사), `render_check.py`/`asl_frames.py`/`rear_compare.py`(시각 점검),
-  `run_drivor441.py`(호스트 프로세스 드라이버 + run_curated_val.sh, 기본 MPC, 441×3), `fit_drivor.py`(기준 8 + DrivoR 2 적합), `test_pai_views.py`(10 pass).
-- conda env `drivor-eval`(py3.9, 번들 requirements + grpcio 1.62.2/protobuf 4.25.3 + rasterio/aioboto3/retry/pytest 를 mingyu 기준 버전으로), nvidia-smi 이름용 링크 `kjs-DrivoR-alpasim441`. 목록 `drivor_eval/drivor-eval-freeze.txt`.
-- 결과물: `runs/drivor-smoke-20261009/`(번들 스모크), `runs/drivor-conformance-20261009/`(리플레이 매트릭스, 그림 2장), `runs/drivor-*-smoke2-20261009/`(라이브 스모크).
+- `run_drivor441.py` 에 일시정지·재개: `--pause`(완료 롤아웃 보존, 이 실행의 드라이버·컨테이너만 정리, status 에 재개 명령 기록), `--dry-run`(재개 시 남은 양),
+  `--resume` 은 체크포인트·어댑터 해시·정밀도·가속도 경계·프로토콜이 첫 실행과 같을 때만 시작하고 `evaluation_provenance.resume-*.json` 을 남긴다(번들은 이름으로 비교해 다른 서버 경로 허용).
+  provenance 에 host·GPU 이름 추가. 드라이버 stdout 은 이어쓰기. `--share-gpus` 는 시험용.
+- 시험(`runs/drivor-drivor-original-smoke2-pausetest`, GPU 7 공유): 1/2 완료 시점에 pause → 2분 만에 정리, 본 평가 컨테이너 60개 무영향 → resume 이 남은 1개만 실행("Built 1 jobs").
+- `drivor_eval/README.md` 에 일시정지·재개·다른 서버 이전 절차와 용량표.
 
 ## 4. 다음 단계
 

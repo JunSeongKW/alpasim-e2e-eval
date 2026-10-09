@@ -19,6 +19,18 @@ recorded in evaluation_provenance.json.
 
 --smoke N runs the first N scenes with one rollout under a separate run name.
 --wait queues until the chosen GPUs are under 4 GB used.
+
+Pause and resume (to hand GPUs to someone else):
+    run_drivor441.py --model M --date YYYYMMDD --pause      # stop, keep every finished rollout
+    run_drivor441.py --model M --date YYYYMMDD --dry-run    # what a resume would still run
+    run_drivor441.py --model M --date YYYYMMDD --gpus ... --replicas 6 --prune-asl --resume [--wait]
+A rollout counts once it has `_complete`, which the runtime writes only after
+its metrics.parquet (alpasim_runtime/event_loop.py), so a pause never leaves a
+marked rollout unscored. On resume the runtime's autoresume deletes unmarked
+(interrupted) rollout folders and dispatches only the missing rollouts per
+scene. GPUs and replicas may differ on resume (placement is not scored), but
+the adapter must not: --resume refuses unless the checkpoints, adapter file
+hashes, precision, ego clamp and protocol equal the first launch's.
 """
 
 import argparse
@@ -136,7 +148,7 @@ class Run:
                    "--port", str(self.port + index), "--device", "cuda:0", "--precision", PRECISION,
                    "--ego-clamp", EGO_CLAMP, "--log-dir", str(out), "--threads", "2"]
             env = {**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu), "OMP_NUM_THREADS": "2"}
-            with (out / "stdout.log").open("w") as stream:
+            with (out / "stdout.log").open("a") as stream:
                 proc = subprocess.Popen(cmd, stdout=stream, stderr=subprocess.STDOUT, env=env,
                                         start_new_session=True, cwd=str(self.dir))
             lines.append(f"{index} {proc.pid}")
@@ -225,6 +237,9 @@ class Run:
                           "wizard_port_base": self.wizard_port},
             "asl_pruned_after_scoring": self.a.prune_asl,
             "git_commit": git("rev-parse", "HEAD"), "git_dirty": git("status", "--short", "--", "e2e_challenge/drivor_eval"),
+            "host": socket.gethostname(),
+            "gpu_names": sorted(set(subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], text=True).split("\n")) - {""}),
             "started_at": datetime.now(KST).isoformat(),
         }
 
@@ -251,9 +266,23 @@ class Run:
         lock = (self.dir / ".launcher.lock").open("w")
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         free, used = self.gpus_free()
-        assert free, f"GPUs busy: {used}"
+        assert free or self.a.share_gpus, f"GPUs busy: {used}"
         ckpts = self.check()
-        (self.dir / "evaluation_provenance.json").write_text(json.dumps(self.provenance(ckpts), indent=2) + "\n")
+        prov = self.provenance(ckpts)
+        first = self.dir / "evaluation_provenance.json"
+        if self.a.resume and first.exists():
+            old = json.loads(first.read_text())
+            # the bundle may sit elsewhere on another server: compare its name, and its
+            # checkpoints by hash
+            assert Path(old["bundle"]).name == Path(prov["bundle"]).name, "resume uses another bundle"
+            for key in ("model", "checkpoints", "adapter", "protocol", "asl_pruned_after_scoring"):
+                assert old.get(key) == prov.get(key), f"resume changes {key}: {old.get(key)} -> {prov.get(key)}"
+            stamp = datetime.now(KST).strftime("%Y%m%d_%H%M%S")
+            (self.dir / f"evaluation_provenance.resume-{stamp}.json").write_text(json.dumps(prov, indent=2) + "\n")
+            log(f"Resuming with {self.completed()} finished rollouts; adapter and protocol match the first launch")
+        else:
+            first.write_text(json.dumps(prov, indent=2) + "\n")
+        (self.dir / "PAUSE_REQUESTED").unlink(missing_ok=True)
         try:
             self.status("starting_drivers")
             self.start_drivers()
@@ -278,12 +307,15 @@ class Run:
                         log(f"driver processes died: {dead}; stopping the simulation")
                         proc.terminate()
                         raise RuntimeError(f"drivers died: {dead}")
-                    done = sum(1 for _ in (self.dir / "rollouts").glob("**/_complete")) \
-                        if (self.dir / "rollouts").exists() else 0
+                    done = self.completed()
                     if self.a.prune_asl and (self.dir / "rollouts").exists():
                         self.prune_finished_asl()
                     self.status("simulation", completed_rollouts=done, vram_peak_mib=peaks)
                     time.sleep(15)
+            if proc.returncode != 0 and (self.dir / "PAUSE_REQUESTED").exists():
+                self.status("paused", completed_rollouts=self.completed(), resume=self.resume_command())
+                log(f"Paused with {self.completed()} finished rollouts")
+                return
             assert proc.returncode == 0, f"simulation exit {proc.returncode}; see the wizard log"
             assert (self.dir / "aggregate/results-summary.json").exists()
             receipt = self.receipts()
@@ -299,6 +331,62 @@ class Run:
         finally:
             self.stop_drivers()
             self.remove_containers()
+
+    def completed(self):
+        return sum(1 for _ in (self.dir / "rollouts").glob("*/*/_complete")) if (self.dir / "rollouts").exists() else 0
+
+    def resume_command(self):
+        return (f".venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model {self.a.model} "
+                + (f"--smoke {self.a.smoke} " if self.a.smoke else "")
+                + f"--date {self.a.date} --gpus {','.join(map(str, self.gpus))} --replicas {self.a.replicas} "
+                + ("--prune-asl " if self.a.prune_asl else "") + "--resume --wait")
+
+    def pause(self):
+        """Stop this run so its GPUs are free, keeping every finished rollout."""
+        status = json.loads((self.dir / "status.json").read_text())
+        launcher = status.get("launcher_pid")
+        alive = launcher and Path(f"/proc/{launcher}").exists() and \
+            "run_drivor441.py" in Path(f"/proc/{launcher}/cmdline").read_bytes().decode(errors="replace")
+        prov = json.loads((self.dir / "evaluation_provenance.json").read_text())
+        self.gpus = prov["placement"]["gpus"]
+        self.workers = prov["placement"]["drivers"]
+        self.a.replicas = self.workers // len(self.gpus)
+        self.a.prune_asl = prov["asl_pruned_after_scoring"]
+        (self.dir / "PAUSE_REQUESTED").write_text(datetime.now(KST).isoformat() + "\n")
+        before = self.completed()
+        log(f"Pausing {self.name}: {before} finished rollouts kept; stopping its compose services")
+        compose = self.dir / "docker-compose.yaml"
+        if compose.exists():
+            subprocess.run(["docker", "compose", "-f", str(compose), "stop", "-t", "30"], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.monotonic() + 600
+        while alive and Path(f"/proc/{launcher}").exists() and time.monotonic() < deadline:
+            time.sleep(5)
+        # the launcher's finally block does this; repeat in case it was not running
+        self.stop_drivers()
+        self.remove_containers()
+        left = [p for p in self.driver_pids().values() if self.alive(p)]
+        assert not left, f"drivers still alive: {left}"
+        after = self.completed()
+        self.status("paused", completed_rollouts=after, resume=self.resume_command())
+        with (self.dir / "pause_log.tsv").open("a") as f:
+            f.write(f"{datetime.now(KST).isoformat()}\tpaused\t{after}\n")
+        total = self.a.smoke or 441 * self.a.rollouts
+        log(f"Paused: {after} / {total} rollouts finished. Resume with:\n  {self.resume_command()}")
+
+    def dry_run(self):
+        """What a resume would dispatch: per-scene finished rollouts (unmarked ones are discarded)."""
+        from collections import Counter
+        per_scene = Counter(p.parent.parent.name for p in (self.dir / "rollouts").glob("*/*/_complete"))
+        unmarked = [d for d in (self.dir / "rollouts").glob("*/*") if d.is_dir() and not (d / "_complete").exists()]
+        want = 1 if self.a.smoke else self.a.rollouts
+        remaining = (self.a.smoke or 441) * want - sum(min(v, want) for v in per_scene.values())
+        print(json.dumps({"run": self.name, "finished": sum(per_scene.values()),
+                          "scenes_started": len(per_scene), "scenes_full": sum(v >= want for v in per_scene.values()),
+                          "over_full_scenes": [k for k, v in per_scene.items() if v > want],
+                          "unmarked_rollout_dirs_to_discard": len(unmarked), "remaining_rollouts": remaining,
+                          "status": json.loads((self.dir / "status.json").read_text()).get("stage"),
+                          "gpus_free": self.gpus_free()}, indent=1))
 
     def remove_containers(self):
         """The wizard stops its compose services but leaves them; remove only this run's."""
@@ -323,9 +411,19 @@ def main():
     ap.add_argument("--prune-asl", action="store_true")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--wait", action="store_true")
+    ap.add_argument("--pause", action="store_true", help="stop this run, keeping finished rollouts")
+    ap.add_argument("--dry-run", action="store_true", help="show what --resume would still run")
+    ap.add_argument("--share-gpus", action="store_true",
+                    help="start on GPUs another job uses (tests only; a scoring run wants them to itself)")
     a = ap.parse_args()
     os.chdir(ROOT)
     run = Run(a)
+    if a.pause:
+        run.pause()
+        return
+    if a.dry_run:
+        run.dry_run()
+        return
     if a.wait:
         log(f"Queued: waiting for GPUs {run.gpus} under 4 GB used (no job is stopped)")
         stable = 0

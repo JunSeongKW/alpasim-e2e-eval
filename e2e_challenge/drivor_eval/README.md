@@ -39,3 +39,36 @@ UV_OFFLINE=1 .venv/bin/python e2e_challenge/drivor_eval/replay_asl.py <rollout.a
 
 드라이버는 호스트 프로세스다(컨테이너 아님). 실행 디렉터리의 `drivers.pids` 로만 정리하며, 각 드라이버의
 `sessions.jsonl` 에 세션별 영수증(forwards, errors, 명령 분포, 커버리지, 지연)이 남는다. 본 평가는 오류 0 이어야 적합에 들어간다.
+
+## 일시정지 · 재개 · 다른 서버로 이전
+
+```bash
+# 멈추기 (완료된 롤아웃은 모두 보존, GPU·컨테이너·드라이버 정리). 두 모델을 같이 멈춘다.
+.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model ours_hugsim_final --date 20261009 --pause
+.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model drivor_original   --date 20261009 --pause
+# 재개 전에 남은 양 확인
+.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model ours_hugsim_final --date 20261009 --dry-run
+# 재개 (status.json 의 "resume" 에 정확한 명령이 적혀 있다. GPU·replica 는 바꿔도 된다)
+.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model ours_hugsim_final --date 20261009 \
+    --gpus 0,1,2,3 --replicas 6 --prune-asl --resume --wait
+```
+
+- 롤아웃은 `metrics.parquet` 을 쓴 뒤 `_complete` 가 생기므로, 멈춘 순간 진행 중이던 롤아웃만 버려지고 재개 때 다시 돈다.
+- `--date` 를 반드시 원래 날짜로 준다(실행 이름에 들어간다).
+- 재개는 체크포인트·어댑터 파일 해시·정밀도·가속도 경계·프로토콜이 첫 실행과 같을 때만 시작한다.
+
+다른 서버로 옮길 때 (2026-10-09 실측):
+
+| 항목 | 크기 | 옮기는 방법 |
+|---|---:|---|
+| 실행 상태 `runs/drivor-*-441x3-20261009/` | 완료 롤아웃당 24 KB (1,323개 ≈ 32 MB/모델) + 로그 수십~수백 MB | 멈춘 뒤 rsync. `rollout.asl` 은 진행 중이던 것뿐이라 `--exclude rollout.asl` 가능 |
+| alpasim 레포 (코드·설정·기준 8종 결과) | .git 260 MB (+LFS 픽스처 225 MB, 선택) | `git push mine` → 대상에서 clone |
+| mingyu 번들 | 995 MB | rsync. 레포 옆 `../mingyu/DRIVOR_ALPASIM_NUREC441_HANDOFF_20261008_2005` 에 같은 상대 경로로 |
+| 장면 441개 (USDZ) | 807.6 GB | `.../nre-artifacts/all-usdzs` 에서 441개 + `ego-hoods`(1.2 MB) rsync, 또는 wizard 가 HuggingFace 에서 자동 다운로드 |
+| Docker 이미지 | nre-ga:26.04 28.0 GB, alpasim-base:0.89.0 11.3 GB | nre-ga 는 NGC pull, base 는 빌드 또는 docker save/load |
+| conda env `drivor-eval` | 5.2 GB | 번들 `environment/requirements-model.txt` + `drivor-eval-freeze.txt` 로 재생성, 링크 `kjs-DrivoR-alpasim441` |
+| `.venv` (uv) | 9.3 GB | `uv sync` |
+| 렌더러 캐시 | 2.7 GB | 선택 (첫 실행 때 자동 생성) |
+
+대상 서버에서 맞출 것: `run_drivor441.py` 의 `ENV_PY`(conda 경로), `data/nre-artifacts` 링크, `--gpus/--replicas`.
+두 모델은 같은 시점에 멈춰 함께 옮겨야 남은 롤아웃이 같은 하드웨어에서 돈다. 재개 provenance 에 host·GPU 이름이 남는다.
