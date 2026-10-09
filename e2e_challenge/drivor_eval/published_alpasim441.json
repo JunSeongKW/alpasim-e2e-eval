@@ -132,7 +132,7 @@
    "offroad_pct": "12.0±1.4",
    "corridor_exit_pct": "25.5±0.9",
    "progress_pct": "76.8±0.8",
-   "train_domain": "같은 도메인 사전학습 (NVIDIA 내부 데이터, PAI-AV 출처)"
+   "train_domain": "같은 차량 플랫폼 내부 데이터로 사전학습 (8만 h, PAI-AV·NuRec 포함 여부 미공개)"
   },
   {
    "source": "ECO",
@@ -211,7 +211,7 @@
  "training_domain_sources": {
   "LTFv6, VaVAM, fine-tuning": "OPTED Sec. IV-A d,e: LTFv6 pre-trained on nuPlan and CARLA; VaVAM on OpenDV + nuPlan/nuScenes; BC/RoaD-recovery/OPTED train the planning decoder for two epochs on 1669 NuRec training scenes",
   "Qwen-Drive 1.0": "arXiv 2609.00111 Sec. 2: RL uses 15K NAVSIM navtrain scenes, 15K PhysicalAI-AV scenes and 479 WOD-E2E scenarios",
-  "Alpamayo": "arXiv 2511.00088 Sec. 6.1: 80,000 h internal data, 7-camera rig, 2,500+ cities, 25 countries; PhysicalAI-AV (source of the NuRec scenes) is released from NVIDIA's data",
+  "Alpamayo": "Model cards (Alpamayo-R1-10B, Alpamayo-1.5-10B): training = CoC traces, Cosmos-Reason Physical AI datasets, NVIDIA internal proprietary AV data (80,000 h), plus 'public driving data' for 1.5; PhysicalAI-AV and -NuRec appear as evaluation datasets (also listed in the HF 'datasets' metadata). No card states whether PhysicalAI-AV / NuRec clips were in training. Same vehicle platform and collection programme (25 countries, 2,500+ cities) as PhysicalAI-AV.",
   "ECO": "arXiv 2609.31383: ECO involves no training; weights chosen on a held-out subset of the HUGSIM train split"
  }
 }

@@ -42,7 +42,8 @@ NOTE_KO = (
     "PCS는 공식 기준 8종과 DrivoR 2종을 함께 적합한 로컬 값(alpamayo1=2000, alternative_2=600 기준)이므로 논문 보고값 행에는 없습니다. "
     "± 는 논문의 경우 평가 3회 또는 학습 seed 3개의 표준편차이고, 우리 값은 장면당 롤아웃 3회를 3개의 평가 회차로 나눈 표준편차입니다. "
     "또한 모든 행이 같은 학습 조건은 아닙니다. '학습 도메인' 열의 제로샷 행만 평가 도메인(PAI 차량·NuRec 장면·AlpaSim)의 데이터를 학습에 쓰지 않았고, "
-    "Alpamayo는 같은 차량 플랫폼의 대규모 내부 데이터로, Qwen-Drive는 PAI-AV 일부로 학습했으며, "
+    "Alpamayo는 평가 데이터와 같은 차량 플랫폼의 NVIDIA 내부 데이터(8만 시간)로 학습했고(공개 PAI-AV·NuRec 클립의 포함 여부는 공개되지 않음), "
+    "Qwen-Drive는 PAI-AV 일부로 학습했으며, "
     "BC·RoaD-recovery·OPTED 행은 AlpaSim 안에서 NuRec 학습 장면(평가 441과 분리)으로 미세조정한 결과입니다."
 )
 NOTE_EN = (
@@ -56,7 +57,8 @@ NOTE_EN = (
     "nonlinear MPC, 441 scenes x 3 rollouts). PCS is our local Drive-IRT fit of the 8 references and the 2 DrivoR "
     "runs (alpamayo1 = 2000, alternative_2 = 600) and is not available for published rows. Training conditions also "
     "differ: only rows marked zero-shot used no data from the evaluation domain (PAI vehicle, NuRec scenes, AlpaSim); "
-    "Alpamayo is pre-trained on large-scale internal data from the same vehicle platform, Qwen-Drive includes part of "
+    "Alpamayo is pre-trained on 80,000 h of NVIDIA internal data from the same vehicle platform (whether the public "
+    "PhysicalAI-AV / NuRec clips were included is not disclosed), Qwen-Drive includes part of "
     "PAI-AV, and the BC / RoaD-recovery / OPTED rows are fine-tuned inside AlpaSim on NuRec training scenes disjoint "
     "from the 441 evaluation scenes."
 )
@@ -126,7 +128,7 @@ def main():
     for key, name, ctrl in (("alpamayo1", "Alpamayo 1 (R1 10B)", "기본 비선형 MPC"),
                             ("vavam-nonlinear", "VaVAM", "기본 비선형 MPC"),
                             ("vavam-linear", "VaVAM", "선형 MPC")):
-        domain = ("같은 도메인 사전학습 (NVIDIA 내부 8만 h, PAI-AV 출처)" if key == "alpamayo1"
+        domain = ("같은 차량 플랫폼 내부 데이터로 사전학습 (8만 h, PAI-AV·NuRec 포함 여부 미공개)" if key == "alpamayo1"
                   else "제로샷 (OpenDV·nuPlan·nuScenes 학습)")
         rows.append({"group": "공식 기준 실행", "model": name, "train_domain": domain, "controller": ctrl,
                      **measured(REF / key / "aggregate/results-summary.json"), "pcs": pcs.get(key, ""),
