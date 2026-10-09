@@ -9,8 +9,9 @@
 
 - **DrivoR 441×3 본 평가 2건 (GPU 0–7, 사용자 승인 2026-10-09 15:05 "8장 전부, VRAM 최대")**: `runs/drivor-ours-hugsim-final-441x3-20261009`(GPU 0–3, 24 worker), `runs/drivor-drivor-original-441x3-20261009`(GPU 4–7, 24 worker). 진행 `runs/<run>/status.json`, 로그 `runs/<run>.progress.log`. GPU 당 렌더러 6 + 드라이버 6 (이전 48-worker 피크 78 GB, 7 은 OOM 위험).
   중단 이력: 15:07 GPU 4–7 판(완료 0) → 8 GPU 로 재시작, 15:30 ego 가속도 스파이크로 drive 실패(clipgt-032b6f21, FP32 에서도) → ±10 m/s² 경계 추가 후 재시작. 중단 폴더는 `runs/.trash-drivor-aborted-*-20261009/`(완료 롤아웃 1개, 평가 끝난 뒤 삭제 가능).
-- 디스크 여유 ~325 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기
-  (5cam ASL 은 DrivoR 어댑터 오프라인 검증 입력으로 쓰고 있으니 지운다면 마지막에).
+- 디스크 정리(2026-10-09 18:18, 사용자 요청): 과거 평가 ASL(6layer·disjoint512·5cam·TRT·invalid-xformers)과 중단된 DrivoR 실행 2건, 총 555.7 GiB 를
+  `runs/.trash-cleanup-20261009/` 로 이름만 옮김(목록 MANIFEST.tsv). 점수 파일·롤아웃 지표는 그대로. 5cam ASL 11개(4 GiB)는 어댑터 검증 입력으로 남김.
+  실제 삭제는 `tools/delete_trash_when_idle.sh` 가 평가·후처리가 끝나 한가해지면 천천히 수행(`runs/cleanup-20261009.progress.log`).
 
 ## 2. 최근 결과
 
@@ -292,6 +293,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
   잡고 모든 실행을 그 교집합으로 재집계한다.
 
 ## 3. 마지막 커밋 이후 바뀐 것
+
+- `tools/delete_trash_when_idle.sh`: .trash-* 디렉터리를 평가·후처리가 없을 때(10분 간격 두 번 확인) ionice idle 로 한 파일씩 삭제.
 
 - 같은 441 장면을 쓴 논문 2편의 AlpaSim 수치를 `drivor_eval/published_alpasim441.json` 에 원문 그대로 정리: OPTED(arXiv 2609.20756, Table I), ECO(arXiv 2609.31383, Table III).
   ECO 의 VaVAM(비선형) 행이 공식 기준 vavam-nonlinear 와 모든 지표가 일치해 열 대응(collision_at_fault, offroad, left_corridor_laterally, progress_clipped_rel, avg_dist_between_incidents_at_fault)을 확정.
