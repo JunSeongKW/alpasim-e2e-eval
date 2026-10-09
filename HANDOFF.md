@@ -12,7 +12,8 @@
   `.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model ours_hugsim_final --date 20261009 --gpus 0,1,2,3 --replicas 6 --prune-asl --resume --wait`
   `.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model drivor_original --date 20261009 --gpus 4,5,6,7 --replicas 6 --prune-asl --resume --wait`
   재개 전 확인: `... --dry-run`. 멈출 때 진행 중이던 롤아웃(25/24개)은 재개 시 버려지고 다시 돈다.
-- 대기 중인 후처리: `finalize_after_eval.sh 20261009`(두 실행 complete 시 fit·세 방식 재채점·통합 보고서), `tools/delete_trash_when_idle.sh`(finalize 가 끝난 뒤 .trash 555.7 GiB 삭제).
+- 대기 중인 후처리: `finalize_after_eval.sh 20261009`(두 실행 complete 시 fit·세 방식 재채점·통합 보고서).
+- 휴지통 삭제 진행 중(21:03~, 사용자 요청): `tools/delete_trash_when_idle.sh runs/.trash-cleanup-20261009 --adaptive` — vda 사용률이 70% 미만인 5초 창에서만 파일 하나씩 삭제. junhyeok 의 axe-rlfreq(74 컨테이너)가 20:58 시작해 디스크가 대부분 90–100% 라 느리게 진행. 로그 `runs/cleanup-20261009.progress.log`.
 - GPU 사용 승인: 이 평가에 한해 0–7 전부(2026-10-09 15:05 "8장 전부, VRAM 최대").
 
 ## 2. 최근 결과
