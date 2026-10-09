@@ -294,6 +294,10 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- `drivor_eval/rescore_protocols.py`: 같은 롤아웃을 세 채점 방식(대회=OPTED·ECO / Alpamayo·Qwen-Drive / RoaD)으로 계산. 대회 방식 재계산은 공식 집계와 762 롤아웃 완전 일치.
+  RoaD 방식은 후방 추돌을 무시하는데, 기록 재생 뒤차가 ego 를 관통하며 같은 접촉이 0.7 s 뒤 정면·측면으로 바뀌므로(ours 92건) 후방으로 시작된 접촉 구간 전체를 무시하도록 구현.
+  중간 결과(135 장면): `runs/drivor-protocols-20261009_2100/protocols.md`. 최종 표 채점 방식은 사용자 결정 대기.
+
 - `tools/delete_trash_when_idle.sh`: .trash-* 디렉터리를 평가·후처리가 없을 때(10분 간격 두 번 확인) ionice idle 로 한 파일씩 삭제.
 
 - 같은 441 장면을 쓴 논문 2편의 AlpaSim 수치를 `drivor_eval/published_alpasim441.json` 에 원문 그대로 정리: OPTED(arXiv 2609.20756, Table I), ECO(arXiv 2609.31383, Table III).
