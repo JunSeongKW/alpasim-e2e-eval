@@ -40,7 +40,10 @@ NOTE_KO = (
     "'공식 기준 실행' 행(Alpamayo 1, VaVAM)은 대회 주최 측이 공개한 결과 파일로, 우리와 같은 dev 계약"
     "(카메라 6대 10 Hz, 1.7 s 강제 GT, 기본 비선형 MPC, 441장면×3롤아웃)에서 실행되었습니다. "
     "PCS는 공식 기준 8종과 DrivoR 2종을 함께 적합한 로컬 값(alpamayo1=2000, alternative_2=600 기준)이므로 논문 보고값 행에는 없습니다. "
-    "± 는 논문의 경우 평가 3회 또는 학습 seed 3개의 표준편차이고, 우리 값은 장면당 롤아웃 3회를 3개의 평가 회차로 나눈 표준편차입니다."
+    "± 는 논문의 경우 평가 3회 또는 학습 seed 3개의 표준편차이고, 우리 값은 장면당 롤아웃 3회를 3개의 평가 회차로 나눈 표준편차입니다. "
+    "또한 모든 행이 같은 학습 조건은 아닙니다. '학습 도메인' 열의 제로샷 행만 평가 도메인(PAI 차량·NuRec 장면·AlpaSim)의 데이터를 학습에 쓰지 않았고, "
+    "Alpamayo는 같은 차량 플랫폼의 대규모 내부 데이터로, Qwen-Drive는 PAI-AV 일부로 학습했으며, "
+    "BC·RoaD-recovery·OPTED 행은 AlpaSim 안에서 NuRec 학습 장면(평가 441과 분리)으로 미세조정한 결과입니다."
 )
 NOTE_EN = (
     "Rows marked 'published' were not run by us; they are copied from the tables of the cited papers (OPTED, ECO). "
@@ -51,11 +54,15 @@ NOTE_EN = (
     "in ECO and in the organizer reference run). Organizer reference rows (Alpamayo 1, VaVAM) are the published "
     "challenge reference runs under the same dev contract as ours (6 cameras at 10 Hz, 1.7 s forced GT, default "
     "nonlinear MPC, 441 scenes x 3 rollouts). PCS is our local Drive-IRT fit of the 8 references and the 2 DrivoR "
-    "runs (alpamayo1 = 2000, alternative_2 = 600) and is not available for published rows."
+    "runs (alpamayo1 = 2000, alternative_2 = 600) and is not available for published rows. Training conditions also "
+    "differ: only rows marked zero-shot used no data from the evaluation domain (PAI vehicle, NuRec scenes, AlpaSim); "
+    "Alpamayo is pre-trained on large-scale internal data from the same vehicle platform, Qwen-Drive includes part of "
+    "PAI-AV, and the BC / RoaD-recovery / OPTED rows are fine-tuned inside AlpaSim on NuRec training scenes disjoint "
+    "from the 441 evaluation scenes."
 )
-COLUMNS = ["group", "model", "controller", "rollouts_per_scene", "scene_score_pct", "km_per_incident",
+COLUMNS = ["group", "model", "train_domain", "controller", "rollouts_per_scene", "scene_score_pct", "km_per_incident",
            "atfault_collision_pct", "offroad_pct", "corridor_exit_pct", "progress_pct", "pcs", "source"]
-HEADER_KO = ["구분", "모델", "제어기", "롤아웃/장면", "장면 점수(%)↑", "책임 사고당 km↑", "책임 충돌(%)↓",
+HEADER_KO = ["구분", "모델", "학습 도메인", "제어기", "롤아웃/장면", "장면 점수(%)↑", "책임 사고당 km↑", "책임 충돌(%)↓",
              "도로 이탈(%)↓", "4 m 이탈(%)↓", "진행률(%)↑", "PCS↑ (순위 구간)", "출처"]
 
 
@@ -111,19 +118,23 @@ def main():
     rows = []
     for key, name, run in (("ours_hugsim_final", "Ours (DrivoR + Z_safe, A8/B12/D10)", a.ours),
                            ("drivor_original", "DrivoR (original V1)", a.original)):
-        rows.append({"group": "직접 평가 (우리)", "model": name, "controller": "기본 비선형 MPC",
+        domain = ("제로샷 (NAVSIM navtrain 학습, 모델 선택은 HUGSIM)" if key == "ours_hugsim_final"
+                  else "제로샷 (NAVSIM navtrain 학습)")
+        rows.append({"group": "직접 평가 (우리)", "model": name, "train_domain": domain, "controller": "기본 비선형 MPC",
                      **measured(summary_path(run)), "pcs": pcs.get(key, ""),
                      "source": f"runs/{run.name if run.is_dir() else run.stem}"})
     for key, name, ctrl in (("alpamayo1", "Alpamayo 1 (R1 10B)", "기본 비선형 MPC"),
                             ("vavam-nonlinear", "VaVAM", "기본 비선형 MPC"),
                             ("vavam-linear", "VaVAM", "선형 MPC")):
-        rows.append({"group": "공식 기준 실행", "model": name, "controller": ctrl,
+        domain = ("같은 도메인 사전학습 (NVIDIA 내부 8만 h, PAI-AV 출처)" if key == "alpamayo1"
+                  else "제로샷 (OpenDV·nuPlan·nuScenes 학습)")
+        rows.append({"group": "공식 기준 실행", "model": name, "train_domain": domain, "controller": ctrl,
                      **measured(REF / key / "aggregate/results-summary.json"), "pcs": pcs.get(key, ""),
                      "source": f"AlpaSim local_evaluation reference `{key}`"})
     published = json.loads((HERE / "published_alpasim441.json").read_text())
     ctrl_ko = {"default MPC": "기본 MPC", "nonlinear MPC (default)": "기본 비선형 MPC", "linear MPC": "선형 MPC"}
     for r in published["rows"]:
-        rows.append({"group": "논문 보고값", "model": r["model"], "controller": ctrl_ko.get(r["controller"], r["controller"]),
+        rows.append({"group": "논문 보고값", "model": r["model"], "train_domain": r["train_domain"], "controller": ctrl_ko.get(r["controller"], r["controller"]),
                      "rollouts_per_scene": "3 runs" if r["source"] == "OPTED" else "미기재",
                      **{k: r[k] for k in ("scene_score_pct", "km_per_incident", "atfault_collision_pct",
                                           "offroad_pct", "corridor_exit_pct", "progress_pct")},
