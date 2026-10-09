@@ -1,16 +1,29 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-09 13:49 KST (Claude Code)
+마지막 갱신: 2026-10-09 14:56 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **없음.** 10-08 번들 3개 441 평가와 39주체 최종 적합 모두 완료(20:10). GPU 0–7 반납(junhyeok 상주 ~3 GB 만), `axe-pkg3-*` 컨테이너 0.
-- 디스크 여유 ~53 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기.
+- **없음.** DrivoR 라이브 스모크 2건 완료 후 드라이버·컨테이너 모두 정리(`kjs-DrivoR-*` 프로세스 0, `drivor-*` 컨테이너 0).
+- 디스크 여유 ~325 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기
+  (5cam ASL 은 DrivoR 어댑터 오프라인 검증 입력으로 쓰고 있으니 지운다면 마지막에).
 
 ## 2. 최근 결과
+
+### DrivoR 2종(mingyu 번들) curated_val 441 평가 준비 (2026-10-09, `e2e_challenge/drivor_eval/README.md`)
+
+- 번들 상태 `MODEL_INFERENCE_READY_ADAPTER_IMPLEMENTATION_PENDING` → PAI gRPC 어댑터를 구현해 **라이브 스모크까지 통과**.
+  번들 해시 검증 PASS, CPU FP32 골든 일치(2모델), H100 FP16 은 mingyu CUDA 골든과 선택 인덱스 동일·후보 ≤0.025 m(=mingyu 자신의 CUDA↔CPU 차).
+- 라이브 스모크(장면 2·롤아웃 1, FP32): 두 모델 모두 추론 398회 오류 0, 인프라 실패 0. 000525f6: ours .953 / original .890, 0026708c: 둘 다 0(5cam 때도 후방추돌난 클립).
+  롤아웃 1개 5.8분(2 worker), drive 1회 전처리 ~410 ms + 모델 ~68 ms, 드라이버 GPU 1.4–1.7 GB.
+- 리플레이 적합성(ASL 5개 × 6구성, 구성당 ~1,000 drive, `runs/drivor-conformance-20261009/matrix_summary.txt`):
+  FP16·입력 그대로 → 모델당 1회 `Nonfinite scores`(시뮬 첫 스텝 가속도 −21.6 m/s² 에서 64후보 충돌 logit ≈ −36 → FP16 sigmoid underflow → 전부 −∞).
+  FP32 는 오류 0, FP16 대비 4 s 지점 차 중앙값 0.01 m(p95 0.8/1.4 m). NAVSIM 범위 clamp 는 오류 0 이지만 28% 스텝을 바꾸고 4 s 지점 p95 9–13 m 이동.
+- 명령 규칙 보정(NAVSIM trainval 20.7만 프레임, `command_calibration.json`): 공식 3 m/20 m(실효 40 m) 균형정확도 .884, 가능 최선 .889.
+- 후방 B0: 회전만 접합하면 바로 뒤 추종차가 반투명/소실 → 지면+15 m 원통 프록시 접합 채택(`runs/drivor-conformance-20261009/rear_b0_stitch_compare.png`).
 
 ### 4개 모델 연산 시간 (2026-10-09, `runs/latency-bench-20261009_1346/REPORT.md`)
 
@@ -277,15 +290,28 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- `pkg3cam_eval/bench_models.py` + `run_bench_models.py`: 각 모델을 441 평가와 같은 이미지·마운트·환경으로 띄워 단독 지연/모듈별 시간/메모리 측정. 결과 `runs/latency-bench-20261009_1346/` (REPORT.md, latency_comparison.csv).
-- 시나리오 분석: 로컬에 USDZ 없던 613 클립을 HF 에서 rig_trajectories.json 만 원격으로 읽어(`scenario_analysis/fetch_remote_geo.py`) 2,364 전부 차종·국가 확보, 그림 1번 패널 n=2364. 막대 진하기 구분 제거.
+- 새 폴더 `e2e_challenge/drivor_eval/` — mingyu DrivoR 번들(`../mingyu/DRIVOR_ALPASIM_NUREC441_HANDOFF_20261008_2005`)용 PAI 드라이버와 441 실행기.
+  `drivor_driver.py`(py3.9 gRPC 서비스, 공식 proto 그대로 import, 번들 `build_model_inputs`/`load_policy` 사용),
+  `pai_views.py`(PAI f-theta → nuPlan 4뷰), `nuplan_rig.json`(+`extract_nuplan_rig.py`), `calibrate_command.py`,
+  `replay_asl.py`(ASL 재생 적합성 검사), `render_check.py`/`asl_frames.py`/`rear_compare.py`(시각 점검),
+  `run_drivor441.py`(호스트 프로세스 드라이버 + run_curated_val.sh, 기본 MPC, 441×3), `fit_drivor.py`(기준 8 + DrivoR 2 적합), `test_pai_views.py`(10 pass).
+- conda env `drivor-eval`(py3.9, 번들 requirements + grpcio 1.62.2/protobuf 4.25.3 + rasterio/aioboto3/retry/pytest 를 mingyu 기준 버전으로), nvidia-smi 이름용 링크 `kjs-DrivoR-alpasim441`. 목록 `drivor_eval/drivor-eval-freeze.txt`.
+- 결과물: `runs/drivor-smoke-20261009/`(번들 스모크), `runs/drivor-conformance-20261009/`(리플레이 매트릭스, 그림 2장), `runs/drivor-*-smoke2-20261009/`(라이브 스모크).
 
 ## 4. 다음 단계
 
+- DrivoR 본 평가: 사용자 결정(5절) 후 `run_drivor441.py --model <m> --gpus ... --replicas 6 --prune-asl` 를 두 모델 차례로(또는 GPU 를 나눠 동시에) → `fit_drivor.py`.
+  441×3 = 모델당 1,323 롤아웃. GPU 4–7(24 worker) 이면 모델당 ~9–11 h 추정, 0–7(48 worker) 이면 절반.
+- 이전 항목(완료된 10-08 번들 흐름, 참고용):
 - 6layer 완료 → 768 자동 시작 확인. vitl 번들 완성 시 `MODEL=vitl512_3layer_lr1 e2e_challenge/pkg3cam_eval/prepare.sh` → `run_pkg3cam.py --model vitl512_3layer_lr1 --smoke <gpu>` (smoke 의 peak 로 드라이버 메모리 확인) → `chain_after.sh leaderboard-stage3-vits768-3layer-20261008 vitl512_3layer_lr1 <extra MiB>`.
 - 인프라(RPC) 실패 클립이 있으면 10-07 infra-retry 방식으로 재시도 후, `pkg3cam_leaderboard.py <완료 모델들>` 로 36+N 공동 적합 → 사용자 형식 CSV.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- **DrivoR 평가(2026-10-09)**: (1) 정밀도 — FP32·입력 그대로(추천, 현재 런처 기본값) vs 번들 기본 FP16 + NAVSIM clamp.
+  (2) 후방 — 프록시 접합(추천, mingyu 메모 우선순위 1) vs 3경로 attention mask(우선순위 2, 모델 코드 수정·테스트 필요).
+  (3) GPU 0–3 사용 허락 여부와 441×3(추천, 기준과 동일) vs 441×1. (4) mingyu 에게 FP32 전환 공유 필요.
+  참고: 이 평가는 axe 계약(16/16/16, MPC 1/0.25/3)이 아니라 번들 프로토콜(기본 MPC, 441×3)을 따른다.
 
 - 이번441최종집계/36리더보드보고에미결없음. 2인프라클립복구완료이며실제모델실패0점은유지했다. 기존axe-v9의역사적RPC1은그대로보존하고미상충돌지표를명시한다.
 
@@ -342,6 +368,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 | 렌더러 공유 캐시 2.7 GB | `.cache/renderer-shared/` | rsync 하거나 첫 실행 때 `warm_renderer_cache.sh` 가 자동 생성 |
 | host venv | `.venv/` (uv) | `uv sync` (`UV_OFFLINE` 은 캐시가 생긴 뒤부터) |
 | 실행 결과 | `runs/<run>/aggregate/results-summary.json` | 요약 JSON 만 rsync 하면 충분 |
+| DrivoR 번들·env | `../mingyu/DRIVOR_ALPASIM_NUREC441_HANDOFF_20261008_2005`, conda `drivor-eval`(+링크 `kjs-DrivoR-alpasim441`) | 번들 rsync, env 는 번들 `environment/requirements-model.txt` + `drivor_eval/drivor-eval-freeze.txt` |
 
 git 으로 오는 것: 런처·드라이버 패키지·오버레이 코드·문서·실험 원장.
 

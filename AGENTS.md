@@ -25,7 +25,7 @@ tail -n 3 runs/*.progress.log 2>/dev/null
 - **GPU**: 이 계정의 카드는 4~7 이다. 0~3 은 사용자가 명시적으로 허락한 작업에만 쓴다. util 0% 는 비어 있다는 뜻이 아니다. 쓰기 전에 `nvidia-smi` 로 여유 메모리를 본다.
 - **공유 머신**: 컨테이너·프로세스 정리는 반드시 이름 필터로 범위를 좁히고 대상을 먼저 출력한다. `docker rm -f $(docker ps -aq)`, `docker container prune`, `--filter ancestor=`, `pkill -f` 금지. 다른 연구원(junhyeok, hanbin, dogun, uisung)의 컨테이너·프로세스·폴더는 건드리지 않는다.
 - **평가 중 대량 삭제 금지**: 수십 GB 삭제는 ext4 저널을 막아 실행 중인 평가를 죽인다. 정리는 `.trash-*/` 로 옮겨 두고 평가가 끝난 뒤 지운다.
-- **평가 계약 불변**: 16 드라이버 / 16 워커 / 16 렌더러 / 441 curated_val / dev preset / gains lat 1.0 · lon 0.25 · idx 3. 기동 속도 관련 변경(`FAST_STARTUP`, 캐시, `PYTHONDONTWRITEBYTECODE`)은 점수에 영향이 없는 것만 허용한다.
+- **평가 계약 불변**: 16 드라이버 / 16 워커 / 16 렌더러 / 441 curated_val / dev preset / gains lat 1.0 · lon 0.25 · idx 3. (axe 계열 평가의 계약이다. DrivoR 논문 평가 `e2e_challenge/drivor_eval` 은 mingyu 번들 프로토콜 — 기본 MPC, 441×3, 기준 8주체와만 적합 — 을 따른다.) 기동 속도 관련 변경(`FAST_STARTUP`, 캐시, `PYTHONDONTWRITEBYTECODE`)은 점수에 영향이 없는 것만 허용한다.
 - **실행 방식**: 확인 질문으로 멈추지 말고 합리적 기본값으로 진행한 뒤 가정을 결과와 함께 보고한다. 되돌릴 수 없는 삭제만 예외.
 - **연구 명제에 고정**: 모든 실험 제안은 "planning 에 필요한 정보는 상황마다 다르고 사람이 미리 정하면 안 된다" 는 명제의 어느 부분에 답하는지 한 줄로 밝힌다. 효과 크기가 큰 곁가지보다 원래 질문을 겨냥한 실험이 우선이다.
 - **결과 보고**: 성능 향상 크기가 아니라 논문 기여가 되는지를 기준으로 판단해 말한다. 실험 결과는 차수별로 쪼개지 말고 한 표로 모은다.
