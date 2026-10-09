@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# After both DrivoR 441x3 runs finish: Drive-IRT fit with the 8 references, then
-# the combined AlpaSim 441 table (our runs + organizer references + published rows).
+# After both DrivoR 441x3 runs finish: Drive-IRT fit with the 8 references, the
+# three scoring conventions (challenge / Alpamayo / RoaD, rescore_protocols.py),
+# then the combined AlpaSim 441 report (our runs + organizer references + published rows).
 #
 #   nohup e2e_challenge/drivor_eval/finalize_after_eval.sh 20261009 > runs/drivor-finalize-20261009.progress.log 2>&1 &
 #
@@ -29,5 +30,13 @@ if .venv/bin/python e2e_challenge/drivor_eval/fit_drivor.py --original "$ORIG" -
 else
     echo "[$(date '+%F %T')] fit refused (see above); the table is written without PCS"
 fi
-.venv/bin/python e2e_challenge/drivor_eval/combined_table.py --original "$ORIG" --ours "$OURS" --fit "$FIT" --out "$OUT"
+PROT="runs/drivor-protocols-${DATE}"
+UV_OFFLINE=1 .venv/bin/python e2e_challenge/drivor_eval/rescore_protocols.py \
+    --run ours="$OURS" --run original="$ORIG" \
+    --check-against ours="$OURS/aggregate/results-summary.json" \
+    --check-against original="$ORIG/aggregate/results-summary.json" --out "$PROT" \
+    && echo "[$(date '+%F %T')] protocols: $PROT/protocols.md" \
+    || echo "[$(date '+%F %T')] protocol rescoring failed; table without it"
+PROTARG=(); [[ -f "$PROT/protocols.json" ]] && PROTARG=(--protocols "$PROT/protocols.json")
+.venv/bin/python e2e_challenge/drivor_eval/combined_table.py --original "$ORIG" --ours "$OURS" --fit "$FIT" --out "$OUT" "${PROTARG[@]}"
 echo "[$(date '+%F %T')] table: $OUT/combined_alpasim441.md"

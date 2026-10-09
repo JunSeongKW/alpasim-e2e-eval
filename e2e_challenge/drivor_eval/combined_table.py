@@ -110,6 +110,34 @@ def measured(path: Path):
     }
 
 
+def protocol_sections(p: dict) -> list:
+    """Alpamayo- and RoaD-convention tables from rescore_protocols.py (same rollouts)."""
+    f1 = lambda x: f"{x:.1f}"  # noqa: E731
+    f2 = lambda x: "∞" if x == float("inf") else f"{x:.2f}"  # noqa: E731
+    names = {"ours": "Ours (DrivoR + Z_safe)", "original": "DrivoR (original V1)"}
+    alp, road = p["tables"]["alpamayo"], p["tables"]["road"]
+    out = ["", f"## 2. Alpamayo 방식 (Alpamayo-R1 · Qwen-Drive, {len(p['scenes'])}개 장면)", "",
+           "첫 근접충돌(후방 포함)·도로 이탈에서 종료, 4 m 이탈은 실패가 아니라 이후 사건만 제외. "
+           "근접충돌은 시뮬레이터의 충돌로 대응시켰다. 논문 보고값 행은 장면 세트(916·920개)가 달라 넣지 않는다.", "",
+           "| 주체 | 근접충돌 전체(%)↓ | 근접충돌 책임(%)↓ | 도로 이탈(%)↓ | 진행률(%)↑ | 사건 사이 km, 전체↑ | 사건 사이 km, 책임↑ |",
+           "|---|---:|---:|---:|---:|---:|---:|"]
+    out += [f"| {names.get(n, n)} | {f1(s['collision_any'])} | {f1(s['collision_at_fault'])} | {f1(s['offroad'])} | "
+            f"{f1(s['progress'])} | {f2(s['km_per_event_all'])} | {f2(s['km_per_event_at_fault'])} |" for n, s in alp.items()]
+    out += ["", f"## 3. RoaD 방식 (후방 추돌 무시, {len(p['scenes'])}개 장면)", "",
+            "뒤차가 일으킨 후방 추돌은 사고로 보지 않고 계속 집계, 책임 충돌·도로 이탈만 사고로 집계 종료, 4 m 이탈은 이후 사건만 제외. "
+            "기록 재생 뒤차가 ego를 관통하며 같은 접촉이 정면·측면으로 바뀌므로, 후방으로 시작된 접촉 구간 전체를 무시했다(우리 구현). "
+            "공식 기준 실행은 시점별 지표가 공개되지 않아 이 방식으로 계산할 수 없다.", "",
+            "| 주체 | 사고 사이 km↑ | 책임 충돌(%)↓ | 도로 이탈(%)↓ | 평균 주행 거리(m)↑ | 진행률(%)↑ |",
+            "|---|---:|---:|---:|---:|---:|"]
+    out += [f"| {names.get(n, n)} | {f2(s['km_per_event_at_fault'])} | {f1(s['collision_at_fault'])} | {f1(s['offroad'])} | "
+            f"{f1(s['dist_m'])} | {f1(s['progress'])} |" for n, s in road.items()]
+    if p.get("checks"):
+        out += ["", "검증: 대회 방식 재계산이 공식 집계와 롤아웃 단위로 일치 ("
+                + ", ".join(f"{k} {v['rollouts_compared']}개, 최대 차이 {v['max_abs_scene_score_diff']:.1e}"
+                            for k, v in p["checks"].items()) + ")."]
+    return out
+
+
 def load_pcs(fit: Path):
     if not fit or not (fit / "capability_ranking.csv").exists():
         return {}
@@ -125,6 +153,8 @@ def main():
     ap.add_argument("--ours", type=Path, required=True)
     ap.add_argument("--fit", type=Path)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--protocols", type=Path,
+                    help="protocols.json of rescore_protocols.py: adds the Alpamayo and RoaD tables")
     a = ap.parse_args()
     pcs = load_pcs(a.fit)
     rows = []
@@ -160,8 +190,12 @@ def main():
         for r in rows:
             w.writerow([r[c] for c in COLUMNS])
     md = ["# AlpaSim 441 장면 (curated_val) 통합 결과", "",
+          "## 1. 대회 방식 (AlpaSim e2e challenge 채점 · OPTED · ECO)", "",
+          "첫 충돌(후방 포함)·도로 이탈·4 m 이탈에서 집계 중단, 책임 충돌·도로 이탈·옆으로 4 m 이탈은 0점.", "",
           "| " + " | ".join(HEADER_KO) + " |", "|" + "---|" * len(HEADER_KO)]
     md += ["| " + " | ".join(str(r[c]) for c in COLUMNS) + " |" for r in rows]
+    if a.protocols:
+        md += protocol_sections(json.loads(a.protocols.read_text()))
     md += ["", NOTE_KO, "", "English note for the paper:", "", NOTE_EN, "",
            "출처:", *[f"- {v['citation']} — {v['url']}" for v in published["sources"].values()],
            "- 공식 기준 실행: NVlabs/alpasim e2e_challenge/local_evaluation/data/pai"]
