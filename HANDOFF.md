@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-08 20:36 KST (Claude Code)
+마지막 갱신: 2026-10-09 13:49 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -11,6 +11,11 @@
 - 디스크 여유 ~53 GB. 과거 ASL 540 GB(6layer 172, disjoint512 172, 5cam 196) 삭제는 사용자 결정 대기.
 
 ## 2. 최근 결과
+
+### 4개 모델 연산 시간 (2026-10-09, `runs/latency-bench-20261009_1346/REPORT.md`)
+
+- 단독 측정(GPU 4–7 각 1모델, `_run_agent` batch1, 200회): axe-v9 59.6 ms / vits512_6layer 62.3 / vits768_3layer 60.7 / vitl512 149.1 ms (2.5배, 6.7 FPS, 백본 111 ms, 337M, 3.3 GB). ViT-S 3개는 사실상 동일.
+- 441 평가 중 Drive 호출 평균(356/683/603/816 ms)은 부하·디스크 차이가 지배적이라 모델 비교에 쓰지 않는다.
 
 ### ★ 10-08 3카메라 번들 3개 최종 (39주체 적합 `runs/leaderboard-39-with-pkg3cam-20261008/`, CSV `e2e_challenge/axe_local_eval/data/local_leaderboard_261008_pkg3cam.csv`)
 
@@ -272,9 +277,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- vitl512 재실행(XFORMERS_DISABLED=1) 441 완료(16:55–20:09, GPU0–7×5, 피크 78.7 GB). FATAL 0·NaN 0. `final_fit_when_done.sh` 가 완료 즉시 39주체 적합(경고·제외 0).
-- 최종 리더보드 CSV 를 `e2e_challenge/axe_local_eval/data/local_leaderboard_261008_pkg3cam.csv` 로 보존. EXPERIMENTS.md 에 3행 추가.
-- 시나리오 분석: 차종(dim_cluster)·국가 열 추가 CSV, 열 설명 txt(한 줄씩), 5패널 그림 6장+요약. 메타데이터 없는 26.01 137클립은 USDZ 로 추정(차체 치수 정확 일치, 국가 LOO 99.6%).
+- `pkg3cam_eval/bench_models.py` + `run_bench_models.py`: 각 모델을 441 평가와 같은 이미지·마운트·환경으로 띄워 단독 지연/모듈별 시간/메모리 측정. 결과 `runs/latency-bench-20261009_1346/` (REPORT.md, latency_comparison.csv).
+- 시나리오 분석: 로컬에 USDZ 없던 613 클립을 HF 에서 rig_trajectories.json 만 원격으로 읽어(`scenario_analysis/fetch_remote_geo.py`) 2,364 전부 차종·국가 확보, 그림 1번 패널 n=2364. 막대 진하기 구분 제거.
 
 ## 4. 다음 단계
 
