@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-09 14:56 KST (Claude Code)
+마지막 갱신: 2026-10-10 17:00 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -15,8 +15,21 @@
 - 대기 중인 후처리: `finalize_after_eval.sh 20261009`(두 실행 complete 시 fit·세 방식 재채점·통합 보고서).
 - 휴지통 삭제 완료(2026-10-10 05:03): 대형 파일 1,587개 포함 `runs/.trash-cleanup-20261009` 전부 삭제, runs/ 581 GB → 20 GB. 완료 시점 디스크 여유 769 GB.
 - GPU 사용 승인: 이 평가에 한해 0–7 전부(2026-10-09 15:05 "8장 전부, VRAM 최대").
+- **axe-v9 441 재실행 대기 중 (2026-10-10 16:51, PID 477631, `runs/curve-axe-v9-441-20261010.progress.log`).** 커브 근정지 분석용 프레임별 기록을 얻기 위한 것으로,
+  채점 실행과 같은 계약(dev, 441×1, 16/16/16, GPU 4–7, gains 1.0/0.25/3, OFFICIAL_ENV_ONLY)을 따른다. junhyeok RL(axe-rlfreq1, GPU 0–7 각 63–72 GB)이 끝나 4–7 이 <10 GB 일 때
+  5분 간격 두 번 확인 후 자동 시작한다. 끝나면 공식 실행과 클립별 점수 재현 확인 → `curve_stop_vs_human.py` → `runs/curve-stop-vs-human-20261010/summary.md`.
+  DrivoR 재개와 동시에 돌리지 말 것(둘 다 4–7 사용).
 
 ## 2. 최근 결과
+
+### 커브에서 사람보다 먼저 거의 서는가 (2026-10-10, `e2e_challenge/axe_local_eval/curve_stop_vs_human.py`)
+
+- 기준: 사람 궤적(usdz rig)과 **같은 도로 위치**에서 비교. 커브 구간 = 15 m 창 최대 헤딩 변화 창 + 진입 20 m, 커브 |yaw|≥30°(83), 직선 <15°(324, 같은 규칙의 구간).
+  근정지 = ego <1 m/s 1초 이상, 그 위치 ±2 m 에서 사람은 줄곧 ≥3 m/s. 첫 충돌 이후는 제외.
+- 프레임별 기록이 있는 axe 계열 4개(vits512-6layer, vitl512, vits768, disjoint-ep04): 커브 구간 근정지 33–40%(사람보다 ≤3 s 늦게 도착한 경우만 28–34%) vs 직선 5–10%.
+  커브 구간 통과 속도 중앙값이 사람의 0.66–0.72배(직선 0.99–1.02). 표시된 근정지는 사람이 그 자리를 중앙값 4.7 m/s 로 지나간 곳, 도착 지연 중앙값 0.6 s, 정지 2.1 s, 26% 는 끝까지 다시 출발 못 함.
+- axe-v9 는 요약만 있음(`runs/leaderboard-merged-route-ep30`): 무사고 완주 롤아웃의 주행거리/사람 중앙값 커브 0.79 vs 직선 0.98, 0.8 미만 57% vs 11%, 점수 .432 vs .788, 도로이탈 14% vs 6%, 차로 이탈 20% vs 6%.
+  같은 지표에서 위 4개 모델과 같은 범위(0.66–0.78, 60–68%) → 같은 문제로 추정, 재실행(1절)으로 확정 예정.
 
 ### DrivoR 2종(mingyu 번들) curated_val 441 평가 준비 (2026-10-09, `e2e_challenge/drivor_eval/README.md`)
 
@@ -297,6 +310,10 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- `axe_local_eval/curve_stop_vs_human.py`: 정책 속도를 같은 위치의 사람 속도와 비교해 커브 구간의 근정지를 센다(2절 기준). 여러 실행을 한 표로.
+- `axe_local_eval/run_curve_axe_v9.sh`: 제출 이미지 axe-v9 를 채점 계약 그대로 441 재실행. GPU 4–7 이 빌 때까지 대기하고, rollout.asl 은 롤아웃마다 metrics.parquet 생성 후 삭제(끝에 175 GB 일괄 삭제 방지).
+  끝나면 공식 실행과 재현 대조 → 커브 분석까지 자동.
+
 - `drivor_eval/rescore_protocols.py`: 같은 롤아웃을 세 채점 방식(대회=OPTED·ECO / Alpamayo·Qwen-Drive / RoaD)으로 계산. 대회 방식 재계산은 공식 집계와 762 롤아웃 완전 일치.
   RoaD 방식은 후방 추돌을 무시하는데, 기록 재생 뒤차가 ego 를 관통하며 같은 접촉이 0.7 s 뒤 정면·측면으로 바뀌므로(ours 92건) 후방으로 시작된 접촉 구간 전체를 무시하도록 구현.
   중간 결과(135 장면): `runs/drivor-protocols-20261009_2100/protocols.md`. 최종 표 채점 방식은 사용자 결정 대기.
@@ -311,6 +328,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 - 일시정지·재개 시험 끝까지 성공: pausetest 실행이 pause 전 1개 + resume 후 1개로 2/2 집계(000525f6 0.893, 0026708c 0).
 
 ## 4. 다음 단계
+
+- axe-v9 재실행 끝나면: progress.log 의 재현 대조(동일 점수 클립 수, 평균 점수)를 먼저 보고, 맞으면 `runs/curve-stop-vs-human-20261010/summary.md` 의 axe-v9 행을 보고한다.
 
 - DrivoR 본 평가 진행 중(1절). 끝나면 `driver_receipts.json` 의 errors=0 확인 → 인프라 실패 클립 있으면 재시도 → `fit_drivor.py --original runs/drivor-drivor-original-441x3-20261009 --ours runs/drivor-ours-hugsim-final-441x3-20261009`.
 - 이전 항목(완료된 10-08 번들 흐름, 참고용):
