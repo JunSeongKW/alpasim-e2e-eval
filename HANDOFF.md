@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-11 21:25 KST (Claude Code)
+마지막 갱신: 2026-10-11 21:20 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -9,12 +9,9 @@
 
 - 3카메라 번들 2개 441 평가 완료(2026-10-11 15:32–21:13): g112_kv28(40 워커) → vidarrender(48 워커, RPC 실패 1클립 `retry_infra.py` 로 재시도, 440 클립 불변 확인)
   → 41주체 적합 `runs/leaderboard-41-with-pkg3cam-20261010/local_leaderboard.csv`. GPU 0–7 반납. DrivoR 는 사용자 승낙 전까지 일시정지 유지.
-- **DrivoR 441×3 평가 일시정지 (2026-10-09 20:50, 사용자 요청; 10-11 11:35 재개했다가 11:40 사용자 요청으로 다시 일시정지).** ours 425/1323(3회 끝난 장면 141), original 423/1323(140). 드라이버·컨테이너 0, GPU 0–7 반납.
-  **사용자가 GPU 사용 승낙을 받았다고 말할 때까지 재개하지 않는다.** 재개 시 드라이버는 nvidia-smi 에 `python` 으로 보인다(10-11 사용자 요청, kjs-DrivoR-alpasim441 링크 사용 중단).
-  재개(두 모델 함께, `--date 20261009` 필수, GPU·replica 는 바꿔도 됨):
-  `.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model ours_hugsim_final --date 20261009 --gpus 0,1,2,3 --replicas 6 --prune-asl --resume --wait`
-  `.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model drivor_original --date 20261009 --gpus 4,5,6,7 --replicas 6 --prune-asl --resume --wait`
-  재개 전 확인: `... --dry-run`. 멈출 때 진행 중이던 롤아웃(25/24개)은 재개 시 버려지고 다시 돈다.
+- **DrivoR 441×3 평가 재개 (2026-10-11 21:18, 사용자 승낙).** ours 425/1323 → GPU 0–3, original 423/1323 → GPU 4–7, 각 24 드라이버(nvidia-smi 에 `python`).
+  예상 종료 10-12 08:00–08:30(10-09 실측 모델당 ~85 롤아웃/시간). 끝나면 `finalize_after_eval.sh 20261009`(PID 2246631)가 적합·세 방식 재채점·통합 표.
+  재개 명령(다시 멈췄을 때): `run_drivor441.py --model <m> --date 20261009 --gpus <0,1,2,3|4,5,6,7> --replicas 6 --prune-asl --resume --wait`.
 - 대기 중인 후처리: `finalize_after_eval.sh 20261009`(두 실행 complete 시 fit·세 방식 재채점·통합 보고서).
 - 휴지통 삭제 완료(2026-10-10 05:03): 대형 파일 1,587개 포함 `runs/.trash-cleanup-20261009` 전부 삭제, runs/ 581 GB → 20 GB. 완료 시점 디스크 여유 769 GB.
 - GPU 사용 승인: 이 평가에 한해 0–7 전부(2026-10-09 15:05 "8장 전부, VRAM 최대").
