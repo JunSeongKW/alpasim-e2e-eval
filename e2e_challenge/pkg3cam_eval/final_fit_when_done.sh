@@ -20,6 +20,14 @@ while :; do
     [[ "$stage" == failed || "$stage" == invalid_stopped || "$stage" == paused ]] && { log "$RUN stage=$stage; no fit"; exit 1; }
     sleep 60
 done
+cd "$ROOT" || exit 1
+# Infrastructure (RPC) failures are retried first; the fit refuses them. A model
+# without any is a no-op here.
+for model in "$@"; do
+    log "infrastructure retry check: $model"
+    "$ROOT/.venv/bin/python" "$ROOT/e2e_challenge/pkg3cam_eval/retry_infra.py" --model "$model" \
+        || { log "retry FAILED for $model; no fit"; exit 1; }
+done
 log "$RUN complete; fitting 36 + $# subjects"
-cd "$ROOT" && UV_OFFLINE=1 "$ROOT/.venv/bin/python" "$ROOT/e2e_challenge/pkg3cam_eval/pkg3cam_leaderboard.py" "$@" \
+UV_OFFLINE=1 "$ROOT/.venv/bin/python" "$ROOT/e2e_challenge/pkg3cam_eval/pkg3cam_leaderboard.py" "$@" \
     && log "FIT DONE" || log "FIT FAILED"
