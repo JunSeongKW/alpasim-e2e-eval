@@ -1,13 +1,14 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-11 11:40 KST (Claude Code)
+마지막 갱신: 2026-10-11 11:50 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **DrivoR 441×3 평가 일시정지 (2026-10-09 20:50, 사용자 요청).** ours 425/1323(3회 끝난 장면 141), original 423/1323(140). 드라이버·컨테이너 0, GPU 0–7 반납.
+- **DrivoR 441×3 평가 일시정지 (2026-10-09 20:50, 사용자 요청; 10-11 11:35 재개했다가 11:40 사용자 요청으로 다시 일시정지).** ours 425/1323(3회 끝난 장면 141), original 423/1323(140). 드라이버·컨테이너 0, GPU 0–7 반납.
+  **사용자가 GPU 사용 승낙을 받았다고 말할 때까지 재개하지 않는다.** 재개 시 드라이버는 nvidia-smi 에 `python` 으로 보인다(10-11 사용자 요청, kjs-DrivoR-alpasim441 링크 사용 중단).
   재개(두 모델 함께, `--date 20261009` 필수, GPU·replica 는 바꿔도 됨):
   `.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model ours_hugsim_final --date 20261009 --gpus 0,1,2,3 --replicas 6 --prune-asl --resume --wait`
   `.venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model drivor_original --date 20261009 --gpus 4,5,6,7 --replicas 6 --prune-asl --resume --wait`
@@ -309,6 +310,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
   잡고 모든 실행을 그 교집합으로 재집계한다.
 
 ## 3. 마지막 커밋 이후 바뀐 것
+
+- `drivor_eval/run_drivor441.py`: 드라이버를 argv[0] `python`(실행 파일은 drivor-eval env, PATH 앞에 env bin)으로 띄운다. 채점·어댑터 무관, 재개 provenance 대상 아님.
 
 - `axe_local_eval/curve_stop_vs_human.py`: 정책 속도를 같은 위치의 사람 속도와 비교해 커브 구간의 근정지를 센다(2절 기준). 여러 실행을 한 표로.
 - `axe_local_eval/run_curve_axe_v9.sh`: 제출 이미지 axe-v9 를 채점 계약 그대로 441 재실행. GPU 4–7 이 빌 때까지 대기하고, rollout.asl 은 롤아웃마다 metrics.parquet 생성 후 삭제(끝에 175 GB 일괄 삭제 방지).

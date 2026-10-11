@@ -12,7 +12,7 @@ e2e_challenge/axe_local_eval/run_curated_val.sh; what this script sets is
 placement only (GPUs, replicas, ports) plus the driver.
 
 Drivers are host processes of drivor_driver.py in the drivor-eval conda env,
-run through the env link kjs-DrivoR-alpasim441 so nvidia-smi names them; one
+started with argv[0] "python" so nvidia-smi lists them as plain python; one
 model per process, one rollout at a time per driver, as many drivers as
 rollout workers. The adapter settings below are frozen for both models and
 recorded in evaluation_provenance.json.
@@ -51,7 +51,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 KIT = ROOT.parent / "mingyu/DRIVOR_ALPASIM_NUREC441_HANDOFF_20261008_2005"
-ENV_PY = Path("/home/kaist5/miniconda3/envs/kjs-DrivoR-alpasim441/bin/python")
+ENV_PY = Path("/home/kaist5/miniconda3/envs/drivor-eval/bin/python")
 KST = ZoneInfo("Asia/Seoul")
 MODELS = {"drivor_original": 0, "ours_hugsim_final": 1}
 # Frozen adapter settings, identical for both models (see drivor_driver.py).
@@ -144,13 +144,16 @@ class Run:
             gpu = self.gpus[index // self.a.replicas]
             out = self.dir / "drivers" / f"drv-{index:02d}"
             out.mkdir(exist_ok=True)
-            cmd = [str(ENV_PY), str(HERE / "drivor_driver.py"), "--policy", self.a.model,
+            # argv[0] is plain "python" (what nvidia-smi shows); the env's bin
+            # leads PATH so the interpreter still resolves its own prefix.
+            cmd = ["python", str(HERE / "drivor_driver.py"), "--policy", self.a.model,
                    "--port", str(self.port + index), "--device", "cuda:0", "--precision", PRECISION,
                    "--ego-clamp", EGO_CLAMP, "--log-dir", str(out), "--threads", "2"]
-            env = {**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu), "OMP_NUM_THREADS": "2"}
+            env = {**os.environ, "CUDA_VISIBLE_DEVICES": str(gpu), "OMP_NUM_THREADS": "2",
+                   "PATH": f"{ENV_PY.parent}:{os.environ.get('PATH', '')}"}
             with (out / "stdout.log").open("a") as stream:
-                proc = subprocess.Popen(cmd, stdout=stream, stderr=subprocess.STDOUT, env=env,
-                                        start_new_session=True, cwd=str(self.dir))
+                proc = subprocess.Popen(cmd, executable=str(ENV_PY), stdout=stream, stderr=subprocess.STDOUT,
+                                        env=env, start_new_session=True, cwd=str(self.dir))
             lines.append(f"{index} {proc.pid}")
         self.pid_file.write_text("\n".join(lines) + "\n")
         deadline = time.monotonic() + 900
