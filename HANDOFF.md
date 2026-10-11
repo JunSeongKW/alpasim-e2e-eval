@@ -1,12 +1,17 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-11 11:50 KST (Claude Code)
+마지막 갱신: 2026-10-11 15:30 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
+- **3카메라 번들 2개 441 평가 (2026-10-11 15:27~, 사용자 요청 "GPU 8장 최대").** `../models/stage3_vits512_{g112_kv28,vidarrender}_best_20261010`.
+  g112_kv28 → `runs/leaderboard-stage3-vits512-g112-kv28-20261010`(GPU 0–7, 5/GPU = 40 워커; 드라이버가 6layer 보다 ~1.8 GB 커서 6/GPU 는 80 GB 초과 예상),
+  끝나면 `chain_after.sh` 가 vidarrender 를 이어서(g112 실측 peak 로 5/6 결정) → `final_fit_when_done.sh` 가 41주체 적합 `runs/leaderboard-41-with-pkg3cam-20261010/local_leaderboard.csv`.
+  계약: axe-v9 이미지 + 번들 소스·체크포인트 읽기 전용 마운트, dev, 441×1, gains 1.0/0.25/3, ASL 은 롤아웃마다 삭제(디스크 여유 133 GB). 스모크 둘 다 PASS(strict load, FATAL 없음).
+  DrivoR 는 계속 일시정지(재개 지시 없음).
 - **DrivoR 441×3 평가 일시정지 (2026-10-09 20:50, 사용자 요청; 10-11 11:35 재개했다가 11:40 사용자 요청으로 다시 일시정지).** ours 425/1323(3회 끝난 장면 141), original 423/1323(140). 드라이버·컨테이너 0, GPU 0–7 반납.
   **사용자가 GPU 사용 승낙을 받았다고 말할 때까지 재개하지 않는다.** 재개 시 드라이버는 nvidia-smi 에 `python` 으로 보인다(10-11 사용자 요청, kjs-DrivoR-alpasim441 링크 사용 중단).
   재개(두 모델 함께, `--date 20261009` 필수, GPU·replica 는 바꿔도 됨):
@@ -310,6 +315,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
   잡고 모든 실행을 그 교집합으로 재집계한다.
 
 ## 3. 마지막 커밋 이후 바뀐 것
+
+- `pkg3cam_eval`: 10-10 번들 2개(vits512_g112_kv28, vits512_vidarrender) 등록. models.sh 에 BUNDLE_DATE, run_pkg3cam MODELS=(subject, date), pkg3cam_leaderboard 출력 폴더는 가장 새 번들 날짜, final_fit_when_done.sh 는 대기할 실행과 모델 목록을 인자로 받는다.
 
 - `drivor_eval/run_drivor441.py`: 드라이버를 argv[0] `python`(실행 파일은 drivor-eval env, PATH 앞에 env bin)으로 띄운다. 채점·어댑터 무관, 재개 provenance 대상 아님.
 

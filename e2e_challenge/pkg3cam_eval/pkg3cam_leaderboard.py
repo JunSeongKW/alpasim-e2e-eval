@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
-"""Jointly fit the existing 36 subjects with the 2026-10-08 three-camera bundles.
+"""Jointly fit the existing 36 subjects with the three-camera bundles (2026-10-08, 2026-10-10).
 
     .venv/bin/python e2e_challenge/pkg3cam_eval/pkg3cam_leaderboard.py vits512_6layer vits768_3layer ...
 
@@ -8,7 +8,7 @@ Same fit as disjoint512_leaderboard.py (ZOIB, CPU, seed 42, 1000 epochs, 16
 particles, rank MC 100000 / seed 0) over the same 441 clips. Every new run must
 cover those 441 clips with one rollout each and carry no infrastructure (RPC)
 failure, or it is refused: a renderer error scored as a 0 would rank the
-simulator, not the model. Writes runs/leaderboard-<N>-with-pkg3cam-20261008/ and
+simulator, not the model. Writes runs/leaderboard-<N>-with-pkg3cam-<newest bundle date>/ and
 the user-format CSV (7 columns) beside the fit.
 """
 
@@ -37,6 +37,13 @@ NEW = {
     "vitl512_3layer_lr1": ("stage3-vitl512-3layer-lr1", "leaderboard-stage3-vitl512-3layer-lr1-20261008",
                            "bevformer_m + ViT-L(DINOv2) / 카메라 3개(L0/F0/R0) 512×256 / BEV encoder 3층 / "
                            "backbone lr ×1.0 / " + COMMON + " / Stage 3 best"),
+    "vits512_g112_kv28": ("stage3-vits512-g112-kv28", "leaderboard-stage3-vits512-g112-kv28-20261010",
+                          "bevformer_m + ViT-S / 카메라 3개(L0/F0/R0) 512×256 / BEV 112×112(0.5 m) encoder 3층 / "
+                          "planner·refinement keyval 28×28 / " + COMMON + " / Stage 3 best(epoch04)"),
+    "vits512_vidarrender": ("stage3-vits512-vidarrender", "leaderboard-stage3-vits512-vidarrender-20261010",
+                            "bevformer_m + ViT-S / 카메라 3개(L0/F0/R0) 512×256 / BEV 56×56 encoder 3층 / "
+                            "ViDAR Stage 0 사전학습 초기화 + latent renderer(layer 1) / " + COMMON
+                            + " / Stage 3 best(epoch03)"),
 }
 
 
@@ -70,7 +77,8 @@ def main():
                if "AioRpcError" in (r.get("failure_reason") or "")]
         assert not bad, f"{name}: infrastructure failures need a retry first: {bad}"
     total = len(subjects) + len(new)
-    out = ROOT / f"runs/leaderboard-{total}-with-pkg3cam-20261008"
+    date = max(NEW[m][1][-8:] for m in a.models)
+    out = ROOT / f"runs/leaderboard-{total}-with-pkg3cam-{date}"
     assert not (out / "manifest.json").exists(), f"Refusing to overwrite {out}"
     command = ["uv", "run", "--extra", "local-evaluation", "python",
                str(ROOT / "e2e_challenge/local_evaluation/evaluate.py"),

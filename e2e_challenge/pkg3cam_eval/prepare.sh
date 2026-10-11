@@ -7,7 +7,7 @@
 # the bundle's source, the adapter and the checkpoint bind-mounted read-only
 # (run_pkg3cam.py), so nothing here needs a GPU or a 26 GB image layer.
 #
-# Writes runs/prepare-<subject>-20261008/:
+# Writes runs/prepare-<subject>-<bundle date>/:
 #   drivesuprim_challenge/  axe-v9's adapter package + the 5cam_eval adapter
 #                           changes (per-session ego_geom, axe-v9 MSDA setting,
 #                           camera order from camera_layout) + 3-camera layout
@@ -20,7 +20,7 @@ source "$HERE/models.sh"
 BUNDLE="$ROOT/../models/$BUNDLE_NAME"
 SRC="$BUNDLE/AXEv1.0-NuRec"
 CKPT="$SRC/checkpoints/stage3_best.ckpt"
-PREP="$ROOT/runs/prepare-${SUBJECT}-20261008"
+PREP="$ROOT/runs/prepare-${SUBJECT}-${BUNDLE_DATE}"
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 
 [[ -f "$BUNDLE/SHA256SUMS" ]] || { log "no SHA256SUMS in $BUNDLE (incomplete archive?)"; exit 2; }

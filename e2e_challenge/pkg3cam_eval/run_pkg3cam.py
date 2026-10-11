@@ -40,10 +40,13 @@ GPUS = list(range(8))
 REPLICAS = 6
 WORKERS = 48
 KST = ZoneInfo("Asia/Seoul")
+# model -> (subject, bundle date); the date names the prepare and run directories
 MODELS = {
-    "vits512_6layer": "stage3-vits512-6layer",
-    "vits768_3layer": "stage3-vits768-3layer",
-    "vitl512_3layer_lr1": "stage3-vitl512-3layer-lr1",
+    "vits512_6layer": ("stage3-vits512-6layer", "20261008"),
+    "vits768_3layer": ("stage3-vits768-3layer", "20261008"),
+    "vitl512_3layer_lr1": ("stage3-vitl512-3layer-lr1", "20261008"),
+    "vits512_g112_kv28": ("stage3-vits512-g112-kv28", "20261010"),
+    "vits512_vidarrender": ("stage3-vits512-vidarrender", "20261010"),
 }
 
 
@@ -57,7 +60,7 @@ def output(command):
 
 class Model:
     def __init__(self, key):
-        self.prep = ROOT / "runs" / f"prepare-{MODELS[key]}-20261008"
+        self.prep = ROOT / "runs" / "prepare-{}-{}".format(*MODELS[key])
         self.meta = json.loads((self.prep / "model.json").read_text())
         self.run_name = self.meta["run_name"]
         self.run = ROOT / "runs" / self.run_name
