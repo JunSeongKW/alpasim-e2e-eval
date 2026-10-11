@@ -121,7 +121,9 @@ import json, sys
 new = json.load(open(f"{sys.argv[1]}/aggregate/results-summary.json"))["rollouts"]
 old = json.load(open("runs/leaderboard-merged-route-ep30/aggregate/results-summary.json"))["rollouts"]
 old = {r["clipgt_id"]: r for r in old}
-pairs = [(r, old[r["clipgt_id"]]) for r in new if r["clipgt_id"] in old and r["metrics"] and old[r["clipgt_id"]]["metrics"]]
+# The scored run has one clip whose metrics lack dist_traveled_m (an RPC failure).
+pairs = [(r, old[r["clipgt_id"]]) for r in new if r["clipgt_id"] in old
+         and "dist_traveled_m" in (r["metrics"] or {}) and "dist_traveled_m" in (old[r["clipgt_id"]]["metrics"] or {})]
 same_score = sum(abs(a["score"] - b["score"]) < 1e-6 for a, b in pairs)
 close_dist = sum(abs(a["metrics"]["dist_traveled_m"] - b["metrics"]["dist_traveled_m"]) < 1.0 for a, b in pairs)
 mean = lambda rows: sum(r["score"] for r in rows) / len(rows)
