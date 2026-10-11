@@ -1,12 +1,15 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-12 KST (Claude Code)
+마지막 갱신: 2026-10-12 08:55 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
+- **대회 규정 실행 시간 측정 대기열 (2026-10-12 08:51~, PID 873448, `runs/ec2-timing-queue-20261012.progress.log`).** ec2 프리셋·8gpu_32rollouts(드라이버 16 × 동시 2 = 32 병렬, GPU 0–7 전부)로
+  axe-v9 → 6layer → 768 → vitl → g112 → vidar 를 순서대로 441×1. 모델별 `runs/ec2-timing-<model>-20261012/timing.json`, 끝나면 `runs/ec2-timing-summary-20261012.md`.
+  모델 단독 지연은 `runs/latency-bench-20261012_0839/`(6개 완료). 실패 모델은 `run_ec2_timing.py --model <m> --date 20261012 --wait` 로 단독 재실행.
 - 3카메라 번들 2개 441 평가 완료(2026-10-11 15:32–21:13): g112_kv28(40 워커) → vidarrender(48 워커, RPC 실패 1클립 `retry_infra.py` 로 재시도, 440 클립 불변 확인)
   → 41주체 적합 `runs/leaderboard-41-with-pkg3cam-20261010/local_leaderboard.csv`. GPU 0–7 반납. DrivoR 는 사용자 승낙 전까지 일시정지 유지.
 - DrivoR 441×3 평가 완료(2026-10-12 06:16): 두 모델 1323 롤아웃, RPC 실패 3건(ours 2, original 1)은 finalize 의 가벼운 재개로 재시도해 0건.
