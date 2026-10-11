@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
-"""Measure the model latency of axe-v9 and the three 10-08 bundles side by side.
+"""Measure the model latency of axe-v9 and the three-camera bundles side by side.
 
-    .venv/bin/python e2e_challenge/pkg3cam_eval/run_bench_models.py [--gpus 4,5,6,7]
+    .venv/bin/python e2e_challenge/pkg3cam_eval/run_bench_models.py [--gpus 4,5,6,7] [--models a,b,...]
 
 One container per model, each alone on its own GPU (default 4-7), all started
 together so they share the same host conditions. axe-v9 runs its immutable
@@ -26,7 +26,8 @@ from run_pkg3cam import Model  # noqa: E402
 
 BASE = ("696254625193.dkr.ecr.us-east-1.amazonaws.com/teams/axe@sha256:"
         "85134c1ea9f09d140be610ca063c50ec60e99980c392e5bf81fe6563af503765")
-MODELS = ["axe-v9", "vits512_6layer", "vits768_3layer", "vitl512_3layer_lr1"]
+MODELS = ["axe-v9", "vits512_6layer", "vits768_3layer", "vitl512_3layer_lr1", "vits512_g112_kv28",
+          "vits512_vidarrender"]
 
 
 def command(name, gpu, out):
@@ -53,8 +54,11 @@ def command(name, gpu, out):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--gpus", default="4,5,6,7")
+    ap.add_argument("--models", default=",".join(MODELS[:4]))
     a = ap.parse_args()
     gpus = a.gpus.split(",")
+    models = a.models.split(",")
+    assert set(models) <= set(MODELS) and len(models) <= len(gpus), "one GPU per model"
     out = ROOT / "runs" / f"latency-bench-{datetime.now():%Y%m%d_%H%M}"
     out.mkdir(parents=True, exist_ok=True)
     out.chmod(0o777)
@@ -66,10 +70,10 @@ def main():
                                 stderr=subprocess.STDOUT).returncode
         return name, gpu, rc
 
-    with concurrent.futures.ThreadPoolExecutor(len(MODELS)) as pool:
-        for name, gpu, rc in pool.map(run, zip(MODELS, gpus)):
+    with concurrent.futures.ThreadPoolExecutor(len(models)) as pool:
+        for name, gpu, rc in pool.map(run, zip(models, gpus)):
             print(f"{name} on GPU {gpu}: exit {rc}", flush=True)
-    rows = [json.loads((out / f"{m}.json").read_text()) for m in MODELS if (out / f"{m}.json").exists()]
+    rows = [json.loads((out / f"{m}.json").read_text()) for m in models if (out / f"{m}.json").exists()]
     (out / "summary.json").write_text(json.dumps(rows, indent=2) + "\n")
     print("results:", out)
 

@@ -33,6 +33,15 @@ HISTOGRAM_BUCKETS = {
     "step_duration": (0.1, 0.5, 1, 2, 5, 10, 30),
 }
 
+# ALPASIM_FINE_RPC_BUCKETS=1 splits rpc_duration finely enough to read latency
+# percentiles off the histogram (telemetry only; a superset of the edges above).
+if os.environ.get("ALPASIM_FINE_RPC_BUCKETS") == "1":
+    HISTOGRAM_BUCKETS["rpc_duration"] = (
+        0.001, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.12, 0.14, 0.16,
+        0.18, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.25, 1.5, 2.0, 3.0,
+        5.0, 10.0,
+    )
+
 
 @dataclass
 class TelemetryContext:
