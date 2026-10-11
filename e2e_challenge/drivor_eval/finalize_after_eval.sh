@@ -24,7 +24,30 @@ while :; do
     if [[ "$a" == complete* && "$b" == complete* ]]; then break; fi
     sleep 300
 done
-echo "[$(date '+%F %T')] both complete (original=$a ours=$b); fitting"
+echo "[$(date '+%F %T')] both complete (original=$a ours=$b)"
+
+# Infrastructure (RPC) failures leave a rollout without _complete, and the
+# runtime's autoresume re-dispatches exactly those; the new aggregate then holds
+# all 1323 rollouts. So a light resume (1 driver per GPU) is the retry. Placement
+# is not part of the resume's provenance check; model, adapter and protocol are.
+rpc_failures() {
+    python3 -c "import json,sys;print(sum('AioRpcError' in (r.get('failure_reason') or '') for r in json.load(open(sys.argv[1]+'/aggregate/results-summary.json'))['rollouts']))" "$1"
+}
+retry_infra() {  # model run-dir gpus
+    for attempt in 1 2 3; do
+        n=$(rpc_failures "$2")
+        [[ "$n" == 0 ]] && return 0
+        echo "[$(date '+%F %T')] $1: $n infrastructure failures; re-running only those rollouts (attempt $attempt)"
+        .venv/bin/python e2e_challenge/drivor_eval/run_drivor441.py --model "$1" --date "$DATE" --gpus "$3" \
+            --replicas 1 --prune-asl --resume --wait >> "runs/$(basename "$2").progress.log" 2>&1 || return 1
+    done
+    [[ "$(rpc_failures "$2")" == 0 ]]
+}
+retry_infra ours_hugsim_final "$OURS" 0,1,2,3 & r1=$!
+retry_infra drivor_original "$ORIG" 4,5,6,7 & r2=$!
+wait $r1; s1=$?; wait $r2; s2=$?
+(( s1 == 0 && s2 == 0 )) || echo "[$(date '+%F %T')] infrastructure retry did not clear every failure; the fit will refuse"
+echo "[$(date '+%F %T')] fitting"
 if .venv/bin/python e2e_challenge/drivor_eval/fit_drivor.py --original "$ORIG" --ours "$OURS" --out "$FIT"; then
     echo "[$(date '+%F %T')] fit done: $FIT/drivor_leaderboard.csv"
 else
