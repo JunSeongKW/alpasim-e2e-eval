@@ -1,6 +1,6 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-12 07:50 KST (Claude Code)
+마지막 갱신: 2026-10-12 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
@@ -17,6 +17,12 @@
   09:08 이후 GPU 0–7 모두 비어 있음.
 
 ## 2. 최근 결과
+
+### AlpaSim 문헌 비교: 평가 기준별 표 (2026-10-12, `runs/drivor-literature-20261012/tables.md`)
+
+- 441 장면을 쓴 논문은 OPTED·ECO뿐. 나머지(GroundAct 913 public_2601, Qwen-Drive 916, Alpamayo-R1·RoaD·Qwen-RobotNav 920, COMPACT-VA 910, 부분집합들)는 장면 세트가 다르다. 원본 DrivoR를 AlpaSim에서 평가한 논문 없음(NavSafe-∞ 는 Isaac Sim, DrivoR DS 64.7).
+- 우리 두 모델을 7개 정의로 재채점: 대회·AlpaSim 기본 집계·Alpamayo-R1·RoaD(측면 포함/제외)·충돌 유형별(OmniDreams)·원지표(FlashDrive). 학습 범주 Z/P/C 와 공정 비교 참고 사항(8절) 포함.
+- 제로샷·기본 MPC·441 끼리: ours 33.4 > DrivoR 29.7 > DiffusionDrive 28.9 > LTFv6 26.5 > VaVAM 11.0 (DiffusionDrive+ECO 35.2).
 
 ### DrivoR 2종 441×3 최종 (2026-10-12, 기준 8주체와 적합)
 
@@ -332,6 +338,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
   잡고 모든 실행을 그 교집합으로 재집계한다.
 
 ## 3. 마지막 커밋 이후 바뀐 것
+
+- `drivor_eval/extra_protocols.py`(원지표·OmniDreams·RoaD 본문 정의), `drivor_eval/literature_tables.py`(문헌 수치 + 우리 재채점 → 기준별 표). 문헌 수치는 원문 대조(2026-10-12).
 
 - `pkg3cam_eval`: 10-10 번들 2개(vits512_g112_kv28, vits512_vidarrender) 등록. models.sh 에 BUNDLE_DATE, run_pkg3cam MODELS=(subject, date), pkg3cam_leaderboard 출력 폴더는 가장 새 번들 날짜, final_fit_when_done.sh 는 대기할 실행과 모델 목록을 인자로 받는다.
 
