@@ -23,6 +23,11 @@
 
 ## 2. 최근 결과
 
+### 같은 441·플래너만 다른 공정 비교 (2026-10-12, `runs/drivor-literature-20261012/fair_441.md`)
+
+- 남는 주체: ours, DrivoR original, VaVAM(비선형), Alpamayo 1 (모두 dev·441×3·기본 비선형 MPC). VaVAM 선형은 참고, alternative_*·논문 행·axe 계열은 제외(이유는 문서).
+- ours − VaVAM: 장면 +22.5 [+18.8, +26.3], 책임 충돌 −6.9; ours − Alpamayo 1: 장면 −21.5, 진행률 −29.4. 강제 GT 중 drive() 호출 차이(181 vs 198 회)는 DrivoR 가 무상태라 영향 없음.
+
 ### axe 계열 6개 + 기준 8개 PCS (2026-10-12, `runs/leaderboard-axe6-8ref-20261012/table.md`)
 
 - 14 주체만 적합(alpamayo1=2000, alternative_2=600): axe-v9 2391 (1–2위) > vits768 2327 > g112 2289 > 6layer 2235 ≈ vitl 2260 > vidar 2199 > alpamayo1 2000.
