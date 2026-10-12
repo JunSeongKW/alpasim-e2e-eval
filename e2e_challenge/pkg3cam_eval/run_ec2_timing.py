@@ -210,9 +210,9 @@ def latency(h):
             **{f"p{int(q * 100)}_ms": 1000 * percentile(h, q) for q in (0.5, 0.9, 0.99)}}
 
 
-def evaluate(key, date, wait, smoke=0):
+def evaluate(key, date, wait, scenes=0):
     drv = Driver(key)
-    run_name = f"ec2-timing-{drv.slug}-{date}" + (f"-smoke{smoke}" if smoke else "")
+    run_name = f"ec2-timing-{drv.slug}-{date}" + (f"-first{scenes}" if scenes else "")
     run = ROOT / "runs" / run_name
     lock = (ROOT / f".cache/{run_name}.lock").open("w")
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -233,7 +233,7 @@ def evaluate(key, date, wait, smoke=0):
     timing = {"model": key, "image": drv.image, "checkpoint_sha256": drv.checkpoint_sha256,
               "contract": "ec2 preset, 8gpu_32rollouts: 16 driver replicas x 2 rollouts on GPUs 4-7, "
                           "32 renderer replicas on 0-3, harmonizer off, BATCH_RENDER_RGB, no driver call in forced GT",
-              "scenes": smoke or 441, "rollouts_per_scene": 1, "gains": GAINS,
+              "scenes": scenes or 441, "rollouts_per_scene": 1, "gains": GAINS,
               "git_commit": output(["git", "-C", str(ROOT), "rev-parse", "HEAD"])}
     write = lambda: (run / "timing.json").write_text(json.dumps(timing, indent=2) + "\n")  # noqa: E731
     peaks = {g: 0 for g in range(8)}
@@ -251,7 +251,7 @@ def evaluate(key, date, wait, smoke=0):
         timing["wizard_started_at"] = datetime.now(KST).isoformat()
         write()
         with (ROOT / "runs" / f"{run_name}.wizard.log").open("a") as stream:
-            extra = [f"scenes.limit_to_first_n={smoke}"] if smoke else []
+            extra = [f"scenes.limit_to_first_n={scenes}"] if scenes else []
             proc = subprocess.Popen(["uv", "run", "alpasim_wizard", *overrides(run, addresses), *extra],
                                     cwd=ROOT, env=env, stdout=stream, stderr=subprocess.STDOUT)
         while proc.poll() is None:
@@ -274,6 +274,8 @@ def evaluate(key, date, wait, smoke=0):
             "infra_failures": sum("AioRpcError" in (r.get("failure_reason") or "") for r in rollouts),
             "first_rollout_done_s": round(stamps[0] - t1, 1), "last_rollout_done_s": round(stamps[-1] - t1, 1),
             "rollouts_per_hour": round(len(stamps) / ((stamps[-1] - t1) / 3600), 1),
+            "completions_s": [round(x - t1, 1) for x in stamps],
+            "est_441_s": est_total([x - t1 for x in stamps]),
             "mean_scene_score": sum(r["score"] for r in rollouts) / len(rollouts),
             "gpu_peak_mib": peaks,
         })
@@ -296,30 +298,56 @@ def evaluate(key, date, wait, smoke=0):
         drv.stop(run_name, run / "driver-logs")
 
 
-def table(date, bench):
-    rows = []
-    for key in MODELS:
-        p = ROOT / "runs" / f"ec2-timing-{key.replace('_', '')}-{date}" / "timing.json"
-        t = json.loads(p.read_text()) if p.exists() else None
-        b = json.loads((Path(bench) / f"{key}.json").read_text()) if bench and (Path(bench) / f"{key}.json").exists() else None
-        rows.append((key, t, b))
-    md = ["| 모델 | 모델 단독 지연 평균/p99 (ms) | Drive RPC 평균 / p50 / p90 / p99 (ms) | 이미지 전달 평균 (ms) | 렌더 평균 (ms) | "
-          "드라이버 기동 | 441 전체 시간 | 마지막 롤아웃까지 | 롤아웃/시간 | 장면 점수 | GPU 최대 (0-3 / 4-7, GB) |",
-          "|---|---|---|---|---|---|---|---|---|---|---|"]
+def est_total(done_s, total=441, slots=32):
+    """Wall time a run of `total` rollouts would take, from a shorter run's completion times.
+
+    The run's own time to its last completion (startup, the first wave and the
+    ramp-down tail, each paid once) plus the missing rollouts at the run's
+    steady rate, measured between the end of the first wave and the start of the
+    last one so neither ramp enters it.
+    """
+    c = sorted(done_s)
+    n = len(c)
+    if n >= total:
+        return round(c[-1], 1)
+    assert n > 2 * slots, f"{n} rollouts are too few to see a steady rate with {slots} slots"
+    rate = (n - 2 * slots) / (c[n - slots - 1] - c[slots - 1])
+    return round(c[-1] + (total - n) / rate, 1)
+
+
+def table(date, bench, scenes):
+    def load(key, suffix):
+        p = ROOT / "runs" / f"ec2-timing-{key.replace('_', '')}-{date}{suffix}" / "timing.json"
+        return json.loads(p.read_text()) if p.exists() else None
+
     fmt = lambda x: "–" if x is None else f"{x:.0f}"  # noqa: E731
-    for key, t, b in rows:
+    md = [f"| 모델 | 모델 단독 지연 평균 / p99 (ms) | Drive 호출 평균 / p50 / p90 / p99 (ms) | 이미지 전달 평균 (ms) | 렌더 평균 (ms) | "
+          f"드라이버 기동 | 첫 롤아웃 완료까지 | 처리량 (롤아웃/시간) | 441 전체 시간 (추정) | GPU 최대 0-3 / 4-7 (GB) |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
+    for key in MODELS:
+        t = load(key, f"-first{scenes}")
+        bp = Path(bench) / f"{key}.json" if bench else None
+        b = json.loads(bp.read_text()) if bp and bp.exists() else None
         bl = f"{b['latency']['mean_ms']:.1f} / {b['latency']['p99_ms']:.1f}" if b else "–"
         if not t or "latency" not in t:
-            md.append(f"| {key} | {bl} | (진행 전) | | | | | | | | |")
+            md.append(f"| {key} | {bl} | (측정 전) |  |  |  |  |  |  |  |")
             continue
-        d, lat = t["latency"]["drive"], t["latency"]
-        pk = t["gpu_peak_mib"]
+        d, lat, pk = t["latency"]["drive"], t["latency"], {int(k): v for k, v in t["gpu_peak_mib"].items()}
+        c = sorted(t["completions_s"])
+        rate = (len(c) - 64) / ((c[len(c) - 33] - c[31]) / 3600)
         md.append(f"| {key} | {bl} | {fmt(d['mean_ms'])} / {fmt(d['p50_ms'])} / {fmt(d['p90_ms'])} / {fmt(d['p99_ms'])} | "
                   f"{fmt(lat['submit_image_observation']['mean_ms'])} | {fmt(lat['render']['mean_ms'])} | "
-                  f"{t['driver_load_s'] / 60:.1f} 분 | {t['wizard_s'] / 3600:.2f} h | {t['last_rollout_done_s'] / 3600:.2f} h | "
-                  f"{t['rollouts_per_hour']:.0f} | {t['mean_scene_score']:.4f} | "
-                  f"{max(pk[str(g)] if str(g) in pk else pk[g] for g in range(4)) / 1024:.0f} / "
-                  f"{max(pk[str(g)] if str(g) in pk else pk[g] for g in range(4, 8)) / 1024:.0f} |")
+                  f"{t['driver_load_s']:.0f} s | {c[0] / 60:.1f} 분 | {rate:.0f} | {t['est_441_s'] / 3600:.2f} h | "
+                  f"{max(pk[g] for g in range(4)) / 1024:.0f} / {max(pk[g] for g in range(4, 8)) / 1024:.0f} |")
+    # validation: axe-v9 full 441 actual vs the estimate from its own subset run
+    full = load("axe-v9", "")
+    run = ROOT / "runs" / f"ec2-timing-axe-v9-{date}"
+    if full and "wizard_started_at" in full and (run / "aggregate/results-summary.json").exists():
+        t0 = datetime.fromisoformat(full["wizard_started_at"]).timestamp()
+        actual = max(p.stat().st_mtime for p in (run / "rollouts").glob("*/*/_complete")) - t0
+        sub = load("axe-v9", f"-first{scenes}")
+        est = f"{sub['est_441_s'] / 3600:.2f} h" if sub and "est_441_s" in sub else "–"
+        md += ["", f"검증: axe-v9 441 전체 실제 {actual / 3600:.2f} h (마지막 롤아웃 완료까지) vs {scenes}개 실행에서 추정 {est}."]
     out = ROOT / "runs" / f"ec2-timing-summary-{date}.md"
     out.write_text("\n".join(md) + "\n")
     print("\n".join(md))
@@ -332,13 +360,13 @@ def main():
     ap.add_argument("--wait", action="store_true")
     ap.add_argument("--table", action="store_true")
     ap.add_argument("--bench")
-    ap.add_argument("--smoke", type=int, default=0, help="first N scenes only, separate run dir")
+    ap.add_argument("--scenes", type=int, default=0, help="first N scenes only (run dir ...-firstN)")
     a = ap.parse_args()
     os.chdir(ROOT)
     if a.table:
-        table(a.date, a.bench)
+        table(a.date, a.bench, a.scenes or 128)
     else:
-        evaluate(a.model, a.date, a.wait, a.smoke)
+        evaluate(a.model, a.date, a.wait, a.scenes)
 
 
 if __name__ == "__main__":
