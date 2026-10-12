@@ -23,6 +23,12 @@
 
 ## 2. 최근 결과
 
+### axe 계열 6개 + 기준 8개 PCS (2026-10-12, `runs/leaderboard-axe6-8ref-20261012/table.md`)
+
+- 14 주체만 적합(alpamayo1=2000, alternative_2=600): axe-v9 2391 (1–2위) > vits768 2327 > g112 2289 > 6layer 2235 ≈ vitl 2260 > vidar 2199 > alpamayo1 2000.
+  axe-v9 는 인프라 실패 없는 재실행(0.7006)을 사용(채점 실행 0.6993 은 RPC 실패 1클립으로 적합 불가). 41주체 적합과는 PCS 척도가 다르다.
+- 지연: 모델 단독(배치 1, H100) 만 모델 비교에 쓴다. dev 실행 중 Drive 평균(355–816 ms)은 렌더러와 GPU 공유·워커 수 차이가 지배. ec2 저부하(4 롤아웃) axe-v9 Drive 169 ms(p99 331), 32병렬 실측은 중단으로 없음.
+
 ### AlpaSim 문헌 비교: 평가 기준별 표 (2026-10-12, `runs/drivor-literature-20261012/tables.md`)
 
 - 441 장면을 쓴 논문은 OPTED·ECO뿐. 나머지(GroundAct 913 public_2601, Qwen-Drive 916, Alpamayo-R1·RoaD·Qwen-RobotNav 920, COMPACT-VA 910, 부분집합들)는 장면 세트가 다르다. 원본 DrivoR를 AlpaSim에서 평가한 논문 없음(NavSafe-∞ 는 Isaac Sim, DrivoR DS 64.7).
