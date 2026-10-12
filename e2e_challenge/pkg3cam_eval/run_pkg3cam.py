@@ -59,12 +59,13 @@ def output(command):
 
 
 class Model:
-    def __init__(self, key):
+    def __init__(self, key, tag=""):
         self.prep = ROOT / "runs" / "prepare-{}-{}".format(*MODELS[key])
         self.meta = json.loads((self.prep / "model.json").read_text())
-        self.run_name = self.meta["run_name"]
+        # tag: a repeat run of the same model gets its own directory and containers
+        self.run_name = self.meta["run_name"] + tag
         self.run = ROOT / "runs" / self.run_name
-        self.prefix = f"axe-pkg3-{key.replace('_', '')}-drv"
+        self.prefix = f"axe-pkg3-{key.replace('_', '')}{tag.replace('-', '')}-drv"
         self.port = int(self.meta["port"])
         self.wizard_port = int(self.meta["wizard_port"])
 
@@ -345,6 +346,7 @@ def main():
                         help="continue a stopped run; completed rollouts are skipped")
     parser.add_argument("--prune-asl", action="store_true",
                         help="delete each scored rollout.asl during the run (disk)")
+    parser.add_argument("--tag", default="", help="suffix for a repeat run, e.g. -rerun-20261012")
     parser.add_argument("--replicas", type=int, default=6,
                         help="drivers and renderers per GPU (6 = 48 workers)")
     args = parser.parse_args()
@@ -353,7 +355,7 @@ def main():
     PRUNE_ASL = args.prune_asl
     RESUME = args.resume
     os.chdir(ROOT)
-    model = Model(args.model)
+    model = Model(args.model, args.tag)
     if args.smoke is not None:
         smoke(model, args.smoke)
         return
