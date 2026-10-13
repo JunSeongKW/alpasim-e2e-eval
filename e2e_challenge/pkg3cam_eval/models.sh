@@ -10,7 +10,8 @@
 #   vits512_g112_kv28 -> ..._stage3_nurec_g112_kv28   (BEV 112x112, 28x28 keyval)
 #   vits512_vidarrender -> ..._stage3_nurec_vidarrender (ViDAR init + latent renderer)
 BUNDLE_DATE=20261008
-case "${MODEL:?MODEL=vits512_6layer|vits768_3layer|vitl512_3layer_lr1|vits512_g112_kv28|vits512_vidarrender}" in
+CHECKPOINT_OVERRIDE=
+case "${MODEL:?MODEL=vits512_6layer|vits768_3layer|vitl512_3layer_lr1|vits512_g112_kv28|vits512_vidarrender|vits768_raw_ep04}" in
     vits512_6layer)
         BUNDLE_NAME=stage3_vits512_6layer_best_20261008
         AGENT=drivesuprim_agent_bevformer_vov_v2_vits_stage3_nurec_bev6
@@ -43,6 +44,16 @@ case "${MODEL:?MODEL=vits512_6layer|vits768_3layer|vitl512_3layer_lr1|vits512_g1
         SUBJECT=stage3-vits512-vidarrender
         PINHOLE_PROFILE=K377_512X256
         PORT=8100; WIZARD_PORT=28000 ;;
+    vits768_raw_ep04)
+        # a bare checkpoint (exp nurec_261012/abl_3cam_base56_img768raw, stage 3 epoch 04):
+        # same tensors and shapes as the vits768 bundle, run with that bundle's source/config
+        BUNDLE_DATE=20261013
+        BUNDLE_NAME=stage3_vits768_3layer_best_20261008
+        CHECKPOINT_OVERRIDE=img768raw_stage3_ep04.ckpt
+        AGENT=drivesuprim_agent_bevformer_vov_v2_vits_stage3_nurec_img768
+        SUBJECT=stage3-img768raw-ep04
+        PINHOLE_PROFILE=K565P5_768X384
+        PORT=8500; WIZARD_PORT=30000 ;;
     *) echo "unknown MODEL=$MODEL" >&2; return 2 2>/dev/null || exit 2 ;;
 esac
 BASE_IMAGE='696254625193.dkr.ecr.us-east-1.amazonaws.com/teams/axe@sha256:85134c1ea9f09d140be610ca063c50ec60e99980c392e5bf81fe6563af503765'

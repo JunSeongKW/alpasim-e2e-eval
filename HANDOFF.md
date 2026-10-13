@@ -1,12 +1,15 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-12 23:20 KST (Claude Code)
+마지막 갱신: 2026-10-13 11:35 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
+- **img768raw_stage3_ep04 441 평가 (2026-10-13 11:31~, `runs/leaderboard-stage3-img768raw-ep04-20261013.progress.log`).** `../models/img768raw_stage3_ep04.ckpt`(sha 5e294441…,
+  exp nurec_261012/abl_3cam_base56_img768raw stage3 epoch 4). vits768 번들과 텐서 이름·형태 동일 → 그 번들 소스·img768 설정으로 평가(10-10 소스와 스모크 출력 비트 동일).
+  GPU 0–7 × 5(40 워커), dev 441×1, gains 1.0/0.25/3. models.sh 에 CHECKPOINT_OVERRIDE 추가.
 - g112·768 재평가 완료(2026-10-12 23:13), GPU 반납. 결과는 2절.
 - 대회 규정(ec2, 16 드라이버 × 동시 2 = 32 병렬) 실행 시간 측정 **사용자 요청으로 중단(2026-10-12 09:2x), GPU 0–7 반납, 컨테이너 0.**
   axe-v9 441 전체 측정은 중단 시점까지 `runs/ec2-timing-axe-v9-20261012/`(완료 롤아웃은 남음, 집계 없음). 나머지 모델 측정은 시작 전.

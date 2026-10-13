@@ -47,6 +47,7 @@ MODELS = {
     "vitl512_3layer_lr1": ("stage3-vitl512-3layer-lr1", "20261008"),
     "vits512_g112_kv28": ("stage3-vits512-g112-kv28", "20261010"),
     "vits512_vidarrender": ("stage3-vits512-vidarrender", "20261010"),
+    "vits768_raw_ep04": ("stage3-img768raw-ep04", "20261013"),
 }
 
 

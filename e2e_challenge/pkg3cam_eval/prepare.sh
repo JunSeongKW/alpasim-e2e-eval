@@ -19,7 +19,9 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 source "$HERE/models.sh"
 BUNDLE="$ROOT/../models/$BUNDLE_NAME"
 SRC="$BUNDLE/AXEv1.0-NuRec"
-CKPT="$SRC/checkpoints/stage3_best.ckpt"
+# a bare checkpoint evaluated with a bundle's source sits in ../models (CHECKPOINT_OVERRIDE)
+CKPT="${CHECKPOINT_OVERRIDE:+$ROOT/../models/$CHECKPOINT_OVERRIDE}"
+CKPT="${CKPT:-$SRC/checkpoints/stage3_best.ckpt}"
 PREP="$ROOT/runs/prepare-${SUBJECT}-${BUNDLE_DATE}"
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 
