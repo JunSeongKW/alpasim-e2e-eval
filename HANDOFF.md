@@ -1,16 +1,13 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-13 15:51 KST (Claude Code)
+마지막 갱신: 2026-10-13 16:58 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **추론 시간 비교 대기열 (2026-10-13 15:53~, `runs/g112-trt-latency-20261013.progress.log`, PID 617145).** axe-v9 / g112 PyTorch / g112 TensorRT 를
-  공식 ec2 preset(16 드라이버 × 동시 2, 렌더러 GPU 0–3)으로 같은 첫 32장면씩(슬롯 32개를 한 번 채우는 최소, 사용자 요청) 순서대로, 이어서 모델 단독 벤치(GPU 4–6). 사용자 요청("gpu 비워지면 바로 진행").
-  시작 시점 GPU 0–7 은 다른 연구원 RL 작업(axe-rlfail)이 사용 중 → 8장이 모두 4 GB 미만이 될 때까지 대기. 표: `runs/ec2-timing-summary-20261013.md`.
-  441 동등성 평가는 사용자 지시로 보류("평가는 하지 말고 기다려줘").
+- 실행 중인 작업 없음. GPU 0–7 비어 있음(2026-10-13 16:58).
 - **g112 TensorRT 제출 이미지 빌드·로컬 검증 완료, push·submit 안 함.** 런북 `e2e_challenge/g112_trt/SUBMISSION_RUNBOOK_G112_TRT.md`.
   이미지 `alpasim-e2e-drivesuprim-stage3:g112-kv28-trt` = `sha256:2b0c5e0067d6…`(11.0 GB). 검증 로그 `runs/g112-trt-build/validate.progress.log`.
   TRT 허가 문의 NVlabs/alpasim#205 는 10-13 기준 답변 없음.
@@ -31,6 +28,14 @@
   09:08 이후 GPU 0–7 모두 비어 있음.
 
 ## 2. 최근 결과
+
+### 공식 ec2 preset 추론 시간: axe-v9 / g112 / g112 TensorRT (2026-10-13, `runs/ec2-timing-summary-20261013.md`)
+
+- 같은 첫 32장면(슬롯 32개 1회), 모델당 Drive 5,802회, 롤아웃 32·인프라 실패 0. Drive 평균/p50/p90/p99 (ms):
+  axe-v9 203/166/275/1225, g112 232/191/316/1299, **g112 TRT 183/148/247/1016** (g112 대비 −21%, axe-v9 대비 −10%).
+- 모델 단독(H100 1장, 200회): 58.5 / 67.4 / **51.0** ms. TRT 드라이버 16/16 exact 엔진 활성, fallback·Traceback 0, GPU 4–7 최대 26/34/32 GB.
+- 롤아웃 평균 시간은 셋 다 약 355 s(렌더 RPC 평균 ~1.14 s 가 지배) → 이 구성에서는 Drive 지연이 줄어도 롤아웃 시간·처리량은 거의 같다.
+  각 1회 측정이며 드라이버 기동 시간(113/77/74 s)이 보여주듯 호스트 부하가 시점마다 다르다.
 
 ### vits512_g112_kv28 TensorRT 제출 이미지 (2026-10-13, `e2e_challenge/g112_trt/`)
 
