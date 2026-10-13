@@ -1,15 +1,17 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-13 11:35 KST (Claude Code)
+마지막 갱신: 2026-10-13 15:13 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **img768raw_stage3_ep04 441 평가 (2026-10-13 11:31~, `runs/leaderboard-stage3-img768raw-ep04-20261013.progress.log`).** `../models/img768raw_stage3_ep04.ckpt`(sha 5e294441…,
-  exp nurec_261012/abl_3cam_base56_img768raw stage3 epoch 4). vits768 번들과 텐서 이름·형태 동일 → 그 번들 소스·img768 설정으로 평가(10-10 소스와 스모크 출력 비트 동일).
-  GPU 0–7 × 5(40 워커), dev 441×1, gains 1.0/0.25/3. models.sh 에 CHECKPOINT_OVERRIDE 추가.
+- **평가 없음 (2026-10-13 15:xx).** 사용자 지시: "평가는 하지 말고 기다려줘, 적용된 이미지 빌드까지만". GPU 0–7 비어 있음.
+- **g112 TensorRT 제출 이미지 빌드·로컬 검증 완료, push·submit 안 함.** 런북 `e2e_challenge/g112_trt/SUBMISSION_RUNBOOK_G112_TRT.md`.
+  이미지 `alpasim-e2e-drivesuprim-stage3:g112-kv28-trt` = `sha256:2b0c5e0067d6…`(11.0 GB). 검증 로그 `runs/g112-trt-build/validate.progress.log`.
+  TRT 허가 문의 NVlabs/alpasim#205 는 10-13 기준 답변 없음.
+- img768raw_stage3_ep04 441 평가 완료(2026-10-13 11:31–14:23, RPC 실패 1클립 재시도 14:33 → 441·인프라 실패 0). 결과 2절.
 - g112·768 재평가 완료(2026-10-12 23:13), GPU 반납. 결과는 2절.
 - 대회 규정(ec2, 16 드라이버 × 동시 2 = 32 병렬) 실행 시간 측정 **사용자 요청으로 중단(2026-10-12 09:2x), GPU 0–7 반납, 컨테이너 0.**
   axe-v9 441 전체 측정은 중단 시점까지 `runs/ec2-timing-axe-v9-20261012/`(완료 롤아웃은 남음, 집계 없음). 나머지 모델 측정은 시작 전.
@@ -26,6 +28,26 @@
   09:08 이후 GPU 0–7 모두 비어 있음.
 
 ## 2. 최근 결과
+
+### vits512_g112_kv28 TensorRT 제출 이미지 (2026-10-13, `e2e_challenge/g112_trt/`)
+
+- axe-v9 이미지 위에 g112 441 평가 때 마운트한 것(navsim, nurec_pf, 어댑터, 체크포인트, 설정)을 그대로 굽고,
+  ViT 이미지 백본만 TensorRT 10.13 FP16 엔진으로 교체(엔진 exact=H100, ampere_plus=cc≥8.0). 드라이버 기동 시 공식 GPU 위에서
+  PyTorch 백본과 비교해 상대 오차 ≤5% 일 때만 교체, 그 외 모든 실패는 PyTorch 로 기동. 호출 중 예외 시 그 프로세스는 PyTorch 로 계속.
+- 엔진: 백본 1회 7.27 → 0.99 ms(exact) / 1.09 ms(ampere_plus), 상대 오차 1.1%. 모델 전체 68.2 ms(PyTorch) → 약 51 ms 추정.
+- `validate.sh` [1]–[8] 통과: axe-v9 레이어·실행 설정·환경변수 67개 유지, 코드 422파일이 441 평가 마운트와 동일(policy.py 4줄 hook만 추가),
+  공식 환경만으로 24 s 로드·`active engine=exact`·get_version 응답·VRAM 4.1 GB, ampere_plus 엔진 동작, fallback 4종(엔진 없음/off/TRT 없음/검증 거부) 모두 PyTorch 로 기동.
+- 첫 빌드는 `libnvonnxparser.so.10` 을 빌드 전용으로 잘못 보고 빼서 이미지 안에서 TRT import 가 실패(→ PyTorch 로 기동)했다. 넣고 재빌드해 해결.
+- `validate.sh` [9](프로세스 내): TRT 가 실제로 쓰이고 PyTorch 와 같은 후보 선택·궤적 차 0.0 m, TRT 예외 시 PyTorch 전환 정상. 단 "다른 shape 입력" 검사가
+  PyTorch 두 번 호출 결과의 비트 불일치로 실패(테스트를 상대 오차 1e-3 비교로 수정, 재실행 전). 지연(198.8 vs 204.8 ms)은 다른 연구원 RL 작업(axe-rlfail, GPU 0–7)과
+  GPU 를 나눠 쓴 측정이라 무효. GPU 가 비면 `GPU=4 validate.sh` 재실행.
+- 미검증: 이 이미지로 441 폐루프 동등성(`run_parity.sh`, 사용자 지시로 보류), 공식 ec2 토폴로지(렌더러가 GPU 0–3 필요), H100 외 GPU 실측.
+
+### img768raw_stage3_ep04 441 최종 (2026-10-13, 441·인프라 실패 0)
+
+- 장면 0.591, 0점 32.4%, 책임 충돌 8.2%, 도로 이탈 12.2%, corridor 13.4%, 책임 사고당 km 0.74.
+- − vits768(두 실행 평균) −0.052 [−0.090, −0.015], − g112 평균 −0.040 [−0.077, −0.003], − axe-v9 −0.110 [−0.155, −0.064].
+  환경은 vits768 과 같고 가중치만 다르다(epoch 4 vs 9). 덜 학습된 체크포인트가 낮다는 확인이며 논문 기여는 아니다.
 
 ### vits768 vs vits512_g112 재평가 (2026-10-12, 각 441×1 두 번, 40 워커)
 
@@ -365,6 +387,13 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
+- `e2e_challenge/g112_trt/`: vits512_g112_kv28 TensorRT 제출 이미지. `build.sh`(엔진 → 컨텍스트 → 오프라인 docker build),
+  `build_engines.py`(실제로 도는 백본을 찾아 ONNX → exact/ampere_plus FP16 엔진 + manifest), `trt_backbone_runtime.py`(드라이버 기동 시
+  검증 후 교체, 절대 예외를 올리지 않음), `validate.sh`(제출 전 로컬 점검 10항목), `test_trt_image.py`(프로세스 내 궤적·fallback·지연),
+  `run_parity.sh`·`compare_parity.py`(441 동등성, 미실행), `SUBMISSION_RUNBOOK_G112_TRT.md`.
+- `pkg3cam_eval/run_pkg3cam.py`: `--gpus`(기본 0–7, 이 계정 카드 4–7 만 쓰는 실행용), model.json `"baked": true` 면 마운트 없이 이미지 그대로 실행,
+  `vits512_g112_kv28_trt` 등록. `retry_infra.py`: `--gpus`(기본 0,1).
+
 - `drivor_eval/extra_protocols.py`(원지표·OmniDreams·RoaD 본문 정의), `drivor_eval/literature_tables.py`(문헌 수치 + 우리 재채점 → 기준별 표). 문헌 수치는 원문 대조(2026-10-12).
 
 - `pkg3cam_eval`: 10-10 번들 2개(vits512_g112_kv28, vits512_vidarrender) 등록. models.sh 에 BUNDLE_DATE, run_pkg3cam MODELS=(subject, date), pkg3cam_leaderboard 출력 폴더는 가장 새 번들 날짜, final_fit_when_done.sh 는 대기할 실행과 모델 목록을 인자로 받는다.
@@ -389,6 +418,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 - 일시정지·재개 시험 끝까지 성공: pausetest 실행이 pause 전 1개 + resume 후 1개로 2/2 집계(000525f6 0.893, 0026708c 0).
 
 ## 4. 다음 단계
+
+- g112 TRT 제출: #205 허가 확인 → (원하면) `run_parity.sh` 로 441 동등성 → 런북 3–5절(약관·횟수 → 태그를 이미지 ID 로 → `ECR_URI=... validate.sh` [10] → push → submit `--controller-gains` 필수).
 
 - (완료) axe-v9 커브 분석: 2절.
 

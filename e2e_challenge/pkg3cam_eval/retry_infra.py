@@ -55,6 +55,7 @@ def validate_replacement(before, after, failed_ids):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", required=True, choices=sorted(base.MODELS))
+    ap.add_argument("--gpus", default="0,1", help="up to two GPUs for the retry drivers")
     a = ap.parse_args()
     os.chdir(ROOT)
     model = base.Model(a.model)
@@ -76,7 +77,7 @@ def main():
     lock = (ROOT / f".cache/{retry_name}.lock").open("w")
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     assert not retry.exists(), f"refusing a duplicate retry: {retry}"
-    base.GPUS, base.REPLICAS = [0, 1], 1
+    base.GPUS, base.REPLICAS = [int(g) for g in a.gpus.split(",")][:2], 1
     base.WORKERS = min(2, len(failed_ids))
     base.GPUS = base.GPUS[:base.WORKERS]
     model.run, model.run_name = retry, retry_name

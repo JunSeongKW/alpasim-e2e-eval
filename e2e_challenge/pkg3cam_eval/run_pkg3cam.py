@@ -48,6 +48,8 @@ MODELS = {
     "vits512_g112_kv28": ("stage3-vits512-g112-kv28", "20261010"),
     "vits512_vidarrender": ("stage3-vits512-vidarrender", "20261010"),
     "vits768_raw_ep04": ("stage3-img768raw-ep04", "20261013"),
+    # the g112 TensorRT submission image as built (e2e_challenge/g112_trt), nothing mounted
+    "vits512_g112_kv28_trt": ("stage3-vits512-g112-kv28-trt", "20261013"),
 }
 
 
@@ -71,6 +73,8 @@ class Model:
         self.wizard_port = int(self.meta["wizard_port"])
 
     def mounts(self):
+        if self.meta.get("baked"):  # a submission image carries all of it
+            return []
         src = self.meta["source"]
         return [
             "-v", f"{src}/navsim:/app/navsim:ro",
@@ -156,7 +160,8 @@ class Model:
 def gpus_free():
     stats = output(["nvidia-smi", "--query-gpu=index,memory.used",
                     "--format=csv,noheader,nounits"]).splitlines()
-    return len(stats) == 8 and all(int(r.split(",")[1]) < 4000 for r in stats), stats
+    used = {int(r.split(",")[0]): int(r.split(",")[1]) for r in stats}
+    return all(used.get(g, 10**9) < 4000 for g in GPUS), stats
 
 
 def smoke(model, gpu):
@@ -261,9 +266,9 @@ def evaluate(model):
                                       "checkpoint_sha256", "bundle_manifest_sha256",
                                       "pinhole_profile", "base_image", "config_summary")},
         "camera_order": ["CAM_L0", "CAM_F0", "CAM_R0"],
-        "mounted_read_only": ["/app/navsim", "/app/nurec_pf", "/app/drivesuprim_challenge",
-                              "/app/assets/drivesuprim/pkg_stage3_best.ckpt",
-                              "/app/assets/drivesuprim/pkg_config.json"],
+        "mounted_read_only": [] if model.meta.get("baked") else [
+            "/app/navsim", "/app/nurec_pf", "/app/drivesuprim_challenge",
+            "/app/assets/drivesuprim/pkg_stage3_best.ckpt", "/app/assets/drivesuprim/pkg_config.json"],
         "preset": "dev", "scenes": 441, "rollouts_per_scene": 1, "gpus": GPUS,
         "drivers": WORKERS, "workers": WORKERS, "renderers": WORKERS,
         "model_batch_size": 1, "render_bundling": "NONE", "route_reranker": False,
@@ -280,13 +285,13 @@ def evaluate(model):
 
         def start_gpu(gpu):
             for replica in range(REPLICAS):
-                index = gpu * REPLICAS + replica
+                index = GPUS.index(gpu) * REPLICAS + replica
                 subprocess.run(model.docker_driver(f"{model.prefix}-g{gpu}-{replica}", gpu,
                                                    model.port + index, index),
                                check=True, stdout=subprocess.DEVNULL)
             log(f"Started {REPLICAS} drivers on GPU {gpu}")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(GPUS)) as pool:
             list(pool.map(start_gpu, GPUS))
         pending = {f"{model.prefix}-g{g}-{r}" for g in GPUS for r in range(REPLICAS)}
         deadline = time.monotonic() + 1800
@@ -317,7 +322,7 @@ def evaluate(model):
                                 "--format=csv,noheader,nounits"])
                 for row in stats.splitlines():
                     gpu, used, _, _ = (v.strip() for v in row.split(","))
-                    peaks[gpu] = max(peaks[gpu], int(used))
+                    peaks[gpu] = max(peaks.get(gpu, 0), int(used))
                     stream.write(f"{datetime.now(KST).isoformat()},{row}\n")
                 stream.flush()
                 (model.run / "vram-peaks.json").write_text(json.dumps(peaks, indent=2) + "\n")
@@ -350,8 +355,11 @@ def main():
     parser.add_argument("--tag", default="", help="suffix for a repeat run, e.g. -rerun-20261012")
     parser.add_argument("--replicas", type=int, default=6,
                         help="drivers and renderers per GPU (6 = 48 workers)")
+    parser.add_argument("--gpus", default="0,1,2,3,4,5,6,7",
+                        help="GPUs for drivers and renderers, e.g. 4,5,6,7 (this account's cards)")
     args = parser.parse_args()
-    global REPLICAS, WORKERS, PRUNE_ASL, RESUME
+    global GPUS, REPLICAS, WORKERS, PRUNE_ASL, RESUME
+    GPUS = [int(g) for g in args.gpus.split(",")]
     REPLICAS, WORKERS = args.replicas, args.replicas * len(GPUS)
     PRUNE_ASL = args.prune_asl
     RESUME = args.resume
@@ -365,7 +373,7 @@ def main():
         log("check OK")
         return
     if args.wait:
-        log("Queued: waiting for all eight GPUs under 4 GB used (no job is stopped)")
+        log(f"Queued: waiting for GPUs {GPUS} under 4 GB used (no job is stopped)")
         stable = 0
         while stable < 2:
             stable = stable + 1 if gpus_free()[0] else 0
