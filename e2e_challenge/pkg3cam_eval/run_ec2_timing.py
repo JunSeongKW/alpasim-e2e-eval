@@ -275,7 +275,7 @@ def evaluate(key, date, wait, scenes=0):
             "first_rollout_done_s": round(stamps[0] - t1, 1), "last_rollout_done_s": round(stamps[-1] - t1, 1),
             "rollouts_per_hour": round(len(stamps) / ((stamps[-1] - t1) / 3600), 1),
             "completions_s": [round(x - t1, 1) for x in stamps],
-            "est_441_s": est_total([x - t1 for x in stamps]),
+            "est_441_s": safe_est_total([x - t1 for x in stamps]),
             "mean_scene_score": sum(r["score"] for r in rollouts) / len(rollouts),
             "gpu_peak_mib": peaks,
         })
@@ -315,7 +315,15 @@ def est_total(done_s, total=441, slots=32):
     return round(c[-1] + (total - n) / rate, 1)
 
 
-def table(date, bench, scenes):
+def safe_est_total(done_s):
+    """est_total, or None when the run is too short for a steady rate (keeps the latencies)."""
+    try:
+        return est_total(done_s)
+    except AssertionError:
+        return None
+
+
+def table(date, bench, scenes, models=None):
     def load(key, suffix):
         p = ROOT / "runs" / f"ec2-timing-{key.replace('_', '')}-{date}{suffix}" / "timing.json"
         return json.loads(p.read_text()) if p.exists() else None
@@ -324,7 +332,7 @@ def table(date, bench, scenes):
     md = [f"| 모델 | 모델 단독 지연 평균 / p99 (ms) | Drive 호출 평균 / p50 / p90 / p99 (ms) | 이미지 전달 평균 (ms) | 렌더 평균 (ms) | "
           f"드라이버 기동 | 첫 롤아웃 완료까지 | 처리량 (롤아웃/시간) | 441 전체 시간 (추정) | GPU 최대 0-3 / 4-7 (GB) |",
           "|---|---|---|---|---|---|---|---|---|---|"]
-    for key in MODELS:
+    for key in models or MODELS:
         t = load(key, f"-first{scenes}")
         bp = Path(bench) / f"{key}.json" if bench else None
         b = json.loads(bp.read_text()) if bp and bp.exists() else None
@@ -334,10 +342,11 @@ def table(date, bench, scenes):
             continue
         d, lat, pk = t["latency"]["drive"], t["latency"], {int(k): v for k, v in t["gpu_peak_mib"].items()}
         c = sorted(t["completions_s"])
-        rate = (len(c) - 64) / ((c[len(c) - 33] - c[31]) / 3600)
+        rate = (len(c) - 64) / ((c[len(c) - 33] - c[31]) / 3600) if len(c) > 64 else None
+        est = "–" if t.get("est_441_s") is None else f"{t['est_441_s'] / 3600:.2f} h"
         md.append(f"| {key} | {bl} | {fmt(d['mean_ms'])} / {fmt(d['p50_ms'])} / {fmt(d['p90_ms'])} / {fmt(d['p99_ms'])} | "
                   f"{fmt(lat['submit_image_observation']['mean_ms'])} | {fmt(lat['render']['mean_ms'])} | "
-                  f"{t['driver_load_s']:.0f} s | {c[0] / 60:.1f} 분 | {rate:.0f} | {t['est_441_s'] / 3600:.2f} h | "
+                  f"{t['driver_load_s']:.0f} s | {c[0] / 60:.1f} 분 | {fmt(rate)} | {est} | "
                   f"{max(pk[g] for g in range(4)) / 1024:.0f} / {max(pk[g] for g in range(4, 8)) / 1024:.0f} |")
     # validation: axe-v9 full 441 actual vs the estimate from its own subset run
     full = load("axe-v9", "")
@@ -361,10 +370,11 @@ def main():
     ap.add_argument("--table", action="store_true")
     ap.add_argument("--bench")
     ap.add_argument("--scenes", type=int, default=0, help="first N scenes only (run dir ...-firstN)")
+    ap.add_argument("--models", help="--table: only these, comma-separated, in this order")
     a = ap.parse_args()
     os.chdir(ROOT)
     if a.table:
-        table(a.date, a.bench, a.scenes or 128)
+        table(a.date, a.bench, a.scenes or 128, a.models.split(",") if a.models else None)
     else:
         evaluate(a.model, a.date, a.wait, a.scenes)
 

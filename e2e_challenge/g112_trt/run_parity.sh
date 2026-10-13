@@ -17,22 +17,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
 IMAGE="${1:-alpasim-e2e-drivesuprim-stage3:g112-kv28-trt}"
-SRC_PREP=runs/prepare-stage3-vits512-g112-kv28-20261010
 PREP=runs/prepare-stage3-vits512-g112-kv28-trt-20261013
 RUN=leaderboard-stage3-vits512-g112-kv28-trt-20261013
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 
-ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
-mkdir -p "$PREP"
-python3 - "$SRC_PREP/model.json" "$PREP/model.json" "$ID" "$IMAGE" "$RUN" <<'EOF'
-import json, sys
-m = json.load(open(sys.argv[1]))
-m.update({"model": "vits512_g112_kv28_trt", "subject": "stage3-vits512-g112-kv28-trt",
-          "run_name": sys.argv[5], "base_image": sys.argv[3], "image_tag": sys.argv[4],
-          "baked": True, "port": 9300, "wizard_port": 34000})
-json.dump(m, open(sys.argv[2], "w"), indent=2)
-EOF
-log "model.json: $ID ($IMAGE)"
+log "$(python3 "$HERE/register_trt_model.py" "$IMAGE")"
 
 PY=.venv/bin/python
 R=e2e_challenge/pkg3cam_eval/run_pkg3cam.py

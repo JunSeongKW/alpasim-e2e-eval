@@ -1,13 +1,16 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-13 15:13 KST (Claude Code)
+마지막 갱신: 2026-10-13 15:51 KST (Claude Code)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
 
-- **평가 없음 (2026-10-13 15:xx).** 사용자 지시: "평가는 하지 말고 기다려줘, 적용된 이미지 빌드까지만". GPU 0–7 비어 있음.
+- **추론 시간 비교 대기열 (2026-10-13 15:50~, `runs/g112-trt-latency-20261013.progress.log`, PID 611643).** axe-v9 / g112 PyTorch / g112 TensorRT 를
+  공식 ec2 preset(16 드라이버 × 동시 2, 렌더러 GPU 0–3)으로 같은 첫 96장면씩 순서대로, 이어서 모델 단독 벤치(GPU 4–6). 사용자 요청("gpu 비워지면 바로 진행").
+  시작 시점 GPU 0–7 은 다른 연구원 RL 작업(axe-rlfail)이 사용 중 → 8장이 모두 4 GB 미만이 될 때까지 대기. 표: `runs/ec2-timing-summary-20261013.md`.
+  441 동등성 평가는 사용자 지시로 보류("평가는 하지 말고 기다려줘").
 - **g112 TensorRT 제출 이미지 빌드·로컬 검증 완료, push·submit 안 함.** 런북 `e2e_challenge/g112_trt/SUBMISSION_RUNBOOK_G112_TRT.md`.
   이미지 `alpasim-e2e-drivesuprim-stage3:g112-kv28-trt` = `sha256:2b0c5e0067d6…`(11.0 GB). 검증 로그 `runs/g112-trt-build/validate.progress.log`.
   TRT 허가 문의 NVlabs/alpasim#205 는 10-13 기준 답변 없음.
@@ -386,6 +389,10 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
   잡고 모든 실행을 그 교집합으로 재집계한다.
 
 ## 3. 마지막 커밋 이후 바뀐 것
+
+- `g112_trt/latency_compare.sh`: 세 모델 공식 preset 추론 시간 + 모델 단독 지연 대기열. `g112_trt/register_trt_model.py`: TRT 이미지를
+  run_pkg3cam 모델(baked)로 등록(run_parity.sh 도 사용). `run_ec2_timing.py`: 441 시간 추정이 짧은 실행에서 실패해도 지연은 저장, `--table --models`.
+  `run_bench_models.py`: TRT 모델 추가. `test_trt_image.py`: 다른 shape 검사를 상대 오차 비교로.
 
 - `e2e_challenge/g112_trt/`: vits512_g112_kv28 TensorRT 제출 이미지. `build.sh`(엔진 → 컨텍스트 → 오프라인 docker build),
   `build_engines.py`(실제로 도는 백본을 찾아 ONNX → exact/ampere_plus FP16 엔진 + manifest), `trt_backbone_runtime.py`(드라이버 기동 시

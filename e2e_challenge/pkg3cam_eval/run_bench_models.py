@@ -27,7 +27,7 @@ from run_pkg3cam import Model  # noqa: E402
 BASE = ("696254625193.dkr.ecr.us-east-1.amazonaws.com/teams/axe@sha256:"
         "85134c1ea9f09d140be610ca063c50ec60e99980c392e5bf81fe6563af503765")
 MODELS = ["axe-v9", "vits512_6layer", "vits768_3layer", "vitl512_3layer_lr1", "vits512_g112_kv28",
-          "vits512_vidarrender"]
+          "vits512_vidarrender", "vits512_g112_kv28_trt"]
 
 
 def command(name, gpu, out):
