@@ -8,9 +8,10 @@
 #    x 2 concurrent rollouts on GPUs 4-7, 32 renderers on 0-3, harmonizer off,
 #    BATCH_RENDER_RGB, no driver call during forced GT, gains 1.0/0.25/3), the same
 #    first SCENES curated_val scenes for each model, one model after another, each
-#    waiting until all eight GPUs are under 4 GB. 96 scenes = three waves of the 32
-#    slots (~17k Drive calls per model), enough for the latency percentiles and a
-#    steady-rate estimate of the 441 wall time against the 14,400 s budget.
+#    waiting until all eight GPUs are under 4 GB. 32 scenes = the fewest that fill
+#    all 32 slots (16 replicas x 2), so every driver sees the official concurrency;
+#    ~5.7k Drive calls per model is plenty for the latency percentiles. Too short
+#    for a steady-rate 441 wall-time estimate (needs > 64 rollouts); SCENES=96 gives one.
 # 2. Model alone (bench_models.py: DriveSuprimPolicy._run_agent, batch 1, 30 warm-up
 #    + 200 timed calls), the three side by side on GPUs 4-6 once those are free.
 # 3. One table: runs/ec2-timing-summary-<DATE>.md. The TensorRT drivers must all
@@ -20,7 +21,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
 DATE="${DATE:-20261013}"
-SCENES="${SCENES:-96}"
+SCENES="${SCENES:-32}"
 MODELS=(axe-v9 vits512_g112_kv28 vits512_g112_kv28_trt)
 PY=.venv/bin/python
 log() { echo "[$(date '+%F %T')] $*"; }
