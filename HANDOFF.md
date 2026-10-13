@@ -10,7 +10,8 @@
 - 실행 중인 작업 없음. GPU 0–7 비어 있음(2026-10-13 16:58).
 - **g112 TensorRT 제출 이미지 빌드·로컬 검증 완료, push·submit 안 함.** 런북 `e2e_challenge/g112_trt/SUBMISSION_RUNBOOK_G112_TRT.md`.
   이미지 `alpasim-e2e-drivesuprim-stage3:g112-kv28-trt` = `sha256:2b0c5e0067d6…`(11.0 GB). 검증 로그 `runs/g112-trt-build/validate.progress.log`.
-  TRT 허가 문의 NVlabs/alpasim#205 는 10-13 기준 답변 없음.
+  TRT 허가: NVlabs/alpasim#205 답변(Max) — 허용, FP16 허용, 평가 호스트 H100 80GB HBM3 cc 9.0 / 드라이버 580.126.09,
+  기동 제한 약 300 s("I think"), 스크래치 2 GB. → exact 엔진이 그대로 쓰인다.
 - img768raw_stage3_ep04 441 평가 완료(2026-10-13 11:31–14:23, RPC 실패 1클립 재시도 14:33 → 441·인프라 실패 0). 결과 2절.
 - g112·768 재평가 완료(2026-10-12 23:13), GPU 반납. 결과는 2절.
 - 대회 규정(ec2, 16 드라이버 × 동시 2 = 32 병렬) 실행 시간 측정 **사용자 요청으로 중단(2026-10-12 09:2x), GPU 0–7 반납, 컨테이너 0.**
@@ -431,7 +432,7 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 4. 다음 단계
 
-- g112 TRT 제출: #205 허가 확인 → (원하면) `run_parity.sh` 로 441 동등성 → 런북 3–5절(약관·횟수 → 태그를 이미지 ID 로 → `ECR_URI=... validate.sh` [10] → push → submit `--controller-gains` 필수).
+- g112 TRT 제출: #205 허가됨(10-13) → (원하면) `run_parity.sh` 로 441 동등성 → 런북 3–5절(약관·횟수 → 태그를 이미지 ID 로 → `ECR_URI=... validate.sh` [10] → push → submit `--controller-gains` 필수).
 
 - (완료) axe-v9 커브 분석: 2절.
 

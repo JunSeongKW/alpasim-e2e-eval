@@ -4,10 +4,11 @@
 이 문서는 제출을 실행하는 사람이 읽는다. 경로는 저장소 루트
 (`/home/kaist5/data/junseong/AlpaSim-E2E-Challenge/alpasim`) 기준이다.
 
-> **제출 전 선행 조건: 주최측 TensorRT 허가.** 대회 규정에 TensorRT 언급이 없어
-> NVlabs/alpasim#205 로 문의했고, 2026-10-13 기준 답변이 없다(댓글 0). 허가 전 제출은
-> 규정 해석 위험을 진다. 허가가 안 나면 같은 이미지를 `DRIVESUPRIM_TRT_BACKBONE=off` 로
-> 다시 굽는 대신, 아래 "TensorRT 없이 내야 한다면"을 따른다.
+> **주최측 답변 (NVlabs/alpasim#205, Max):** TensorRT 사용 허용, FP16 등 저정밀 추론 허용.
+> 평가 호스트는 **NVIDIA H100 80GB HBM3 (cc 9.0)**, x86_64, 드라이버 580.126.09(CUDA 13.0 지원).
+> 기동 제한은 "아마 300 s", 쓰기 공간 2 GB. → 이 이미지의 `exact` 엔진(H100 80GB HBM3, cc 9.0 에서 빌드)이
+> 그대로 쓰인다. 엔진은 이미지에 미리 들어 있어 기동 시 빌드하지 않고 /tmp 도 쓰지 않는다. 로컬 기동 24 s
+> (공식 환경 단독), 16개 동시 기동 74 s.
 
 ---
 
