@@ -7,7 +7,7 @@
 
 ## 1. 실행 중인 작업
 
-- **추론 시간 비교 대기열 (2026-10-13 15:50~, `runs/g112-trt-latency-20261013.progress.log`, PID 611643).** axe-v9 / g112 PyTorch / g112 TensorRT 를
+- **추론 시간 비교 대기열 (2026-10-13 15:53~, `runs/g112-trt-latency-20261013.progress.log`, PID 617145).** axe-v9 / g112 PyTorch / g112 TensorRT 를
   공식 ec2 preset(16 드라이버 × 동시 2, 렌더러 GPU 0–3)으로 같은 첫 32장면씩(슬롯 32개를 한 번 채우는 최소, 사용자 요청) 순서대로, 이어서 모델 단독 벤치(GPU 4–6). 사용자 요청("gpu 비워지면 바로 진행").
   시작 시점 GPU 0–7 은 다른 연구원 RL 작업(axe-rlfail)이 사용 중 → 8장이 모두 4 GB 미만이 될 때까지 대기. 표: `runs/ec2-timing-summary-20261013.md`.
   441 동등성 평가는 사용자 지시로 보류("평가는 하지 말고 기다려줘").
