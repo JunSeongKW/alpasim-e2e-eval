@@ -1,11 +1,13 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-14 11:11 KST (Codex)
+마지막 갱신: 2026-10-14 11:19 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
+
+- 2026-10-14 MPC 최대속도·대회허용여부조사완료. 로컬/공식e2e_challenge branch code와public규정을읽고CLI validator만메모리에서호출했다. 새평가/이미지/제출/메시지전송없음;진행중공유GPU작업유지. 최고속도MPC필드는노출돼있지않으며40m/s 종방향optimizer상한은공식고정이다.
 
 - 2026-10-14 이번 Codex 세션은 axe-v9 최근441평가의MPC코드/설정/로그 검토만수행했다. 새로운평가/드라이버를실행하지않았다. 공유GPU는다른진행작업이사용중이므로컨테이너·프로세스에손대지않았다. 아래10-13상태는그시점의기록이다.
 
@@ -31,6 +33,14 @@
   09:08 이후 GPU 0–7 모두 비어 있음.
 
 ## 2. 최근 결과
+
+### MPC 최대속도 제약과공식조절범위 (2026-10-14)
+
+- 로컬nonlinear_mpc.py:283 및공식e2e_challenge branch nonlinear_mpc.py:260 모두 `_mpc.bounds["upper","_x","v_cg_x"]=40`,lower0. 40m/s=144km/h이며CG종방향상태에대한최적화제약이다. ControllerConfig/MPCGains/YAML에는max_speed/max_velocity/speed_limit필드가없다. vehicle_model.advance에도상단속도clamp가없으므로시뮬레이터전체의절대속도보장으로해석하지않는다.
+- 공식Starter Kit의Optional Nonlinear-Controller Gains: 'all controller structure, dynamics, and limits remain fixed.' 공식CLI문서는6weights0..10 및idx_start_penalty0..19만허용/서버도재검증/다른controller·simulator설정고정이라고명시한다. 따라서대회공식MPC상한을수정하는제출옵션/허용파라미터없음.
+- 실제local CLI validate_controller_gains: 기존axe-v9 1/.25/3은통과, max_speed/max_velocity/v_cg_x/speed_limit20 입력은각각unsupported controller gain으로거부됨. 인증/API/제출없이함수만실행했다. 공식최신CLI도동일허용목록·unknownkey거부를확인했다.
+- 허용된정책범위는출력참조궤적의목표속도프로파일설계및제출가능gain조정이다. 공식MPC40m/s상한은계속유지되며목표궤적속도제어를실제차량의hard clamp보장으로해석하지않는다. 궤적유효성은driver의설계책임이라는공식CONTROLLER_TUNING.md로확인했다.
+- 감사근거 `runs/mpc-speed-limit-audit-20261014/{audit.json,cli_validation.json}`. 공식sources는GitHub NVlabs/alpasim `e2e_challenge` branch의starter_kit/README.md,competitor_cli/README.md·alpasim_challenge.py,CONTROLLER_TUNING.md,nonlinear_mpc.py. main에는challenge파일이없으므로공식challenge branch를기준으로확인했다.
 
 ### axe-v9 최근441평가의MPC 설정감사 (2026-10-14)
 
@@ -405,11 +415,13 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- 사용자가axe-v9의최근441실행코드/로그에서실제MPC설정확인을요청했다. 최근완료441인curve-axe-v9-441-20261010(실제10-11)와10-12중단441/10-13완료32를구분하고실행script·resolved YAML·provenance·runtime log를교차검증했다.
-- MPC nonlinear/20스텝/.1s와lat1/lon.25/idx3 및나머지heading1/accel.1/steer-change5/accel-change1 확인. 공통스크립트기본6/.5/3과실제명시override1/.25/3을구분했다. 비선형소스는당시commit부터변경없고host src mount까지확인하여idx3의0.3s 추종비용시작의미와IPOPT30을확인했다.
-- 감사기록JSON을runs/mpc-audit-axe-v9-20261014/에저장하고HANDOFF1~5만갱신했다. 코드/모델/체크포인트/평가설정/실행프로세스에변경없음. 공유GPU작업은그대로유지한다.
+- 사용자요청으로MPC최대속도하이퍼파라미터와대회조절허용여부를조사했다. MPC종방향속도상한40m/s가소스상수이고YAML/gains에노출되지않음을확인,공식GitHub challenge branch최신문서와CLI에서모든limits고정/7종gain만허용을교차검증했다.
+- standalone CLI validator에가짜max_speed등4개필드를입력해unsupported거부를확인했고정상axe-v9 gain은통과했다. 인증/외부API/제출/진행중GPU작업에접근하지않았다.
+- 근거audit.json과cli_validation.json을runs/mpc-speed-limit-audit-20261014/에저장,HANDOFF1~5에기록했다. 소스·MPC·체크포인트설정수정없음. 정책참조궤적의목표속도설계와MPC제약수정을구분하여보고한다.
 
 ## 4. 다음 단계
+
+- 최대속도조사완료. 사용자에게MPC40m/s하드코딩/공식상한조절불가/허용gain범위와공식문서링크를제공한다. 새실험은예약하지않았다. 공식조건비교에서는MPC속도제약을수정하지않는다.
 
 - 이번MPC감사는완료. 사용자에게실제controller YAML/실행script/로그경로와파라미터를제공한다. 추가실험은예약하지않았다. 같은MPC를재현할때에는명시1/.25/3 override와nonlinear/20/.1을기준으로삼는다.
 
@@ -423,6 +435,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 - 인프라(RPC) 실패 클립이 있으면 10-07 infra-retry 방식으로 재시도 후, `pkg3cam_leaderboard.py <완료 모델들>` 로 36+N 공동 적합 → 사용자 형식 CSV.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- 이번최대속도파라미터/대회규정조사에미결없음. 공개공식문서가제약고정을명시했고CLI가해당필드를거부한다. 운영자에게메시지/이슈를작성하지않았다.
 
 - 2026-10-14 MPC설정검토에미결없음. 실제코드·생성설정·로그가일치하며실행상태/모델/파라미터를변경하지않았다. 아래는이전세션의기록이다.
 
