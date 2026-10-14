@@ -1,11 +1,13 @@
 # HANDOFF — 이 파일 하나로 다음 에이전트가 이어받는다
 
-마지막 갱신: 2026-10-13 16:58 KST (Claude Code)
+마지막 갱신: 2026-10-14 11:11 KST (Codex)
 
 에이전트(Claude Code, Codex 등)는 세션을 **시작할 때 이 파일과 `git log -10` 을 읽고**,
 **끝낼 때 이 파일을 갱신하고 커밋**한다. 대화 원문은 옮기지 않는다. 규칙은 `AGENTS.md`.
 
 ## 1. 실행 중인 작업
+
+- 2026-10-14 이번 Codex 세션은 axe-v9 최근441평가의MPC코드/설정/로그 검토만수행했다. 새로운평가/드라이버를실행하지않았다. 공유GPU는다른진행작업이사용중이므로컨테이너·프로세스에손대지않았다. 아래10-13상태는그시점의기록이다.
 
 - 실행 중인 작업 없음. GPU 0–7 비어 있음(2026-10-13 16:58).
 - **g112 TensorRT 제출 이미지 빌드·로컬 검증 완료, push·submit 안 함.** 런북 `e2e_challenge/g112_trt/SUBMISSION_RUNBOOK_G112_TRT.md`.
@@ -29,6 +31,13 @@
   09:08 이후 GPU 0–7 모두 비어 있음.
 
 ## 2. 최근 결과
+
+### axe-v9 최근441평가의MPC 설정감사 (2026-10-14)
+
+- 최근전체441완료기록은 `runs/curve-axe-v9-441-20261010`: 실제실행10-11 05:03:29~09:08:38KST, dev/441×1/16worker/GPU4–7. 이미지85134/ckpt364c8,run_summary441unique/인프라0 확인. 10-12 `ec2-timing-axe-v9-20261012`는441대상이지만사용자중단으로완료집계없음;10-13 first32는32클립측정이다.
+- 실제 `controller-config.yaml`=wizard.controller: nonlinear/dt_mpc0.1s/n_horizon20(2s); gains lat1.0/lon.25/idx3,heading1.0/acceleration.1/rel_front_steering_angle5.0/rel_acceleration1.0. script MPC_OVERRIDES와evaluation_provenance 및controller런타임로그16개(nonlinear/20/.1)가일치한다.10-12/10-13 ec2 YAML 및10-7 rear6replay도동일하다.
+- 공용run_curated_val.sh의기본MPC_OVERRIDES는lat6/lon.5/idx3이나실제run_curve_axe_v9.sh는명시적으로1/.25/3을덮어쓴다. MPCGains/비선형preset의원기본값은lat1/lon2/idx10이며나머지가중치는유지됐다. idx3은horizon의k0~2 추종비용을끄고k3(0.3s)부터적용;제어명령변화량정규화는별도이다.
+- nonlinear_mpc.py는run생성commit f87eb3e부터현재HEAD까지변경없고,당시Compose가host src를controller컨테이너에마운트한것을확인했다. 소스상do_mpc/CasADi/IPOPT max_iter30,control_timestep100000us와dt_mpc.1이일치한다. 감사JSON `runs/mpc-audit-axe-v9-20261014/mpc_audit.json`;모델/평가/MPC설정수정없음.
 
 ### 공식 ec2 preset 추론 시간: axe-v9 / g112 / g112 TensorRT (2026-10-13, `runs/ec2-timing-summary-20261013.md`)
 
@@ -396,41 +405,13 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 
 ## 3. 마지막 커밋 이후 바뀐 것
 
-- `g112_trt/latency_compare.sh`: 세 모델 공식 preset 추론 시간 + 모델 단독 지연 대기열. `g112_trt/register_trt_model.py`: TRT 이미지를
-  run_pkg3cam 모델(baked)로 등록(run_parity.sh 도 사용). `run_ec2_timing.py`: 441 시간 추정이 짧은 실행에서 실패해도 지연은 저장, `--table --models`.
-  `run_bench_models.py`: TRT 모델 추가. `test_trt_image.py`: 다른 shape 검사를 상대 오차 비교로.
-
-- `e2e_challenge/g112_trt/`: vits512_g112_kv28 TensorRT 제출 이미지. `build.sh`(엔진 → 컨텍스트 → 오프라인 docker build),
-  `build_engines.py`(실제로 도는 백본을 찾아 ONNX → exact/ampere_plus FP16 엔진 + manifest), `trt_backbone_runtime.py`(드라이버 기동 시
-  검증 후 교체, 절대 예외를 올리지 않음), `validate.sh`(제출 전 로컬 점검 10항목), `test_trt_image.py`(프로세스 내 궤적·fallback·지연),
-  `run_parity.sh`·`compare_parity.py`(441 동등성, 미실행), `SUBMISSION_RUNBOOK_G112_TRT.md`.
-- `pkg3cam_eval/run_pkg3cam.py`: `--gpus`(기본 0–7, 이 계정 카드 4–7 만 쓰는 실행용), model.json `"baked": true` 면 마운트 없이 이미지 그대로 실행,
-  `vits512_g112_kv28_trt` 등록. `retry_infra.py`: `--gpus`(기본 0,1).
-
-- `drivor_eval/extra_protocols.py`(원지표·OmniDreams·RoaD 본문 정의), `drivor_eval/literature_tables.py`(문헌 수치 + 우리 재채점 → 기준별 표). 문헌 수치는 원문 대조(2026-10-12).
-
-- `pkg3cam_eval`: 10-10 번들 2개(vits512_g112_kv28, vits512_vidarrender) 등록. models.sh 에 BUNDLE_DATE, run_pkg3cam MODELS=(subject, date), pkg3cam_leaderboard 출력 폴더는 가장 새 번들 날짜, final_fit_when_done.sh 는 대기할 실행과 모델 목록을 인자로 받는다.
-
-- `drivor_eval/run_drivor441.py`: 드라이버를 argv[0] `python`(실행 파일은 drivor-eval env, PATH 앞에 env bin)으로 띄운다. 채점·어댑터 무관, 재개 provenance 대상 아님.
-
-- `axe_local_eval/curve_stop_vs_human.py`: 정책 속도를 같은 위치의 사람 속도와 비교해 커브 구간의 근정지를 센다(2절 기준). 여러 실행을 한 표로.
-- `axe_local_eval/run_curve_axe_v9.sh`: 제출 이미지 axe-v9 를 채점 계약 그대로 441 재실행. GPU 4–7 이 빌 때까지 대기하고, rollout.asl 은 롤아웃마다 metrics.parquet 생성 후 삭제(끝에 175 GB 일괄 삭제 방지).
-  끝나면 공식 실행과 재현 대조 → 커브 분석까지 자동.
-
-- `drivor_eval/rescore_protocols.py`: 같은 롤아웃을 세 채점 방식(대회=OPTED·ECO / Alpamayo·Qwen-Drive / RoaD)으로 계산. 대회 방식 재계산은 공식 집계와 762 롤아웃 완전 일치.
-  RoaD 방식은 후방 추돌을 무시하는데, 기록 재생 뒤차가 ego 를 관통하며 같은 접촉이 0.7 s 뒤 정면·측면으로 바뀌므로(ours 92건) 후방으로 시작된 접촉 구간 전체를 무시하도록 구현.
-  중간 결과(135 장면): `runs/drivor-protocols-20261009_2100/protocols.md`. 최종 표 채점 방식은 사용자 결정 대기.
-
-- `tools/delete_trash_when_idle.sh`: .trash-* 디렉터리를 평가·후처리가 없을 때(10분 간격 두 번 확인) ionice idle 로 한 파일씩 삭제.
-
-- 같은 441 장면을 쓴 논문 2편의 AlpaSim 수치를 `drivor_eval/published_alpasim441.json` 에 원문 그대로 정리: OPTED(arXiv 2609.20756, Table I), ECO(arXiv 2609.31383, Table III).
-  ECO 의 VaVAM(비선형) 행이 공식 기준 vavam-nonlinear 와 모든 지표가 일치해 열 대응(collision_at_fault, offroad, left_corridor_laterally, progress_clipped_rel, avg_dist_between_incidents_at_fault)을 확정.
-- `combined_table.py`: 우리 2개 + 공식 기준(Alpamayo 1, VaVAM 2종) + 논문 보고값을 한 표(CSV/MD)로, "직접 실행 아님·조건이 완전히 같지 않을 수 있음" 주석(한/영) 포함.
-- 통합 표에 '학습 도메인'·'참고 사항' 열(행별 학습 데이터 공개 여부, 연결 방식 차이, 미기재 조건). Alpamayo 는 'PAI-AV·NuRec 학습 포함 여부 미공개'로 표기.
-- `finalize_after_eval.sh 20261009` 를 nohup 대기 중(`runs/drivor-finalize-20261009.progress.log`): 두 실행 complete → fit_drivor.py → combined_table.py → `runs/drivor-combined-alpasim441-20261009/`.
-- 일시정지·재개 시험 끝까지 성공: pausetest 실행이 pause 전 1개 + resume 후 1개로 2/2 집계(000525f6 0.893, 0026708c 0).
+- 사용자가axe-v9의최근441실행코드/로그에서실제MPC설정확인을요청했다. 최근완료441인curve-axe-v9-441-20261010(실제10-11)와10-12중단441/10-13완료32를구분하고실행script·resolved YAML·provenance·runtime log를교차검증했다.
+- MPC nonlinear/20스텝/.1s와lat1/lon.25/idx3 및나머지heading1/accel.1/steer-change5/accel-change1 확인. 공통스크립트기본6/.5/3과실제명시override1/.25/3을구분했다. 비선형소스는당시commit부터변경없고host src mount까지확인하여idx3의0.3s 추종비용시작의미와IPOPT30을확인했다.
+- 감사기록JSON을runs/mpc-audit-axe-v9-20261014/에저장하고HANDOFF1~5만갱신했다. 코드/모델/체크포인트/평가설정/실행프로세스에변경없음. 공유GPU작업은그대로유지한다.
 
 ## 4. 다음 단계
+
+- 이번MPC감사는완료. 사용자에게실제controller YAML/실행script/로그경로와파라미터를제공한다. 추가실험은예약하지않았다. 같은MPC를재현할때에는명시1/.25/3 override와nonlinear/20/.1을기준으로삼는다.
 
 - g112 TRT 제출: #205 허가됨(10-13) → (원하면) `run_parity.sh` 로 441 동등성 → 런북 3–5절(약관·횟수 → 태그를 이미지 ID 로 → `ECR_URI=... validate.sh` [10] → push → submit `--controller-gains` 필수).
 
@@ -442,6 +423,8 @@ axe-v9 이 4 포인트 앞선다(표준편차 54). 공식 지표에서 승리로
 - 인프라(RPC) 실패 클립이 있으면 10-07 infra-retry 방식으로 재시도 후, `pkg3cam_leaderboard.py <완료 모델들>` 로 36+N 공동 적합 → 사용자 형식 CSV.
 
 ## 5. 미결 질문 (사용자 결정 필요)
+
+- 2026-10-14 MPC설정검토에미결없음. 실제코드·생성설정·로그가일치하며실행상태/모델/파라미터를변경하지않았다. 아래는이전세션의기록이다.
 
 - **DrivoR 평가(2026-10-09)**: 기본값으로 진행 중이며 사용자/mingyu 확인 필요: (1) 정밀도 FP32 + 가속도 ±10 m/s² 경계(번들 기본 FP16 아님).
   (2) 후방 — 프록시 접합(추천, mingyu 메모 우선순위 1) vs 3경로 attention mask(우선순위 2, 모델 코드 수정·테스트 필요).
